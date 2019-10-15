@@ -1,3 +1,4 @@
+#/home/liqi/.local/lib/python3.6/site-packages/ns3gym
 import os
 import sys
 import zmq
@@ -295,10 +296,14 @@ class Ns3ZmqBridge(object):
 
         spaceType = spaceDesc.__class__
 
+	
         if spaceType == spaces.Discrete:
             dataContainer.type = pb.Discrete
             discreteContainerPb = pb.DiscreteDataContainer()
-            discreteContainerPb.data = actions
+            if isinstance(actions,int):
+                discreteContainerPb.data = actions
+            else:
+                discreteContainerPb.data = actions.n
             dataContainer.data.Pack(discreteContainerPb)
 
         elif spaceType == spaces.Box:
@@ -332,13 +337,11 @@ class Ns3ZmqBridge(object):
         elif spaceType == spaces.Tuple:
             dataContainer.type = pb.Tuple
             tupleDataPb = pb.TupleDataContainer()
-
             spaceList = list(self._action_space.spaces)
             subDataList = []
             for subAction, subActSpaceType in zip(actions, spaceList):
                 subData = self._pack_data(subAction, subActSpaceType)
                 subDataList.append(subData)
-
             tupleDataPb.element.extend(subDataList)
             dataContainer.data.Pack(tupleDataPb)
 

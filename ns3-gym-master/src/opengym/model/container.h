@@ -295,7 +295,7 @@ public:
 
   bool Add(Ptr<OpenGymDataContainer> space);
   Ptr<OpenGymDataContainer> Get(uint32_t idx);
-
+  uint32_t size();
 protected:
   // Inherited
   virtual void DoInitialize (void);

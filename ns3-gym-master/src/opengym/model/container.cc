@@ -323,7 +323,11 @@ OpenGymTupleContainer::Print(std::ostream& where) const
   }
   where << ")";
 }
-
+uint32_t
+OpenGymTupleContainer::size()
+{
+  return m_tuple.size();
+}
 
 TypeId
 OpenGymDictContainer::GetTypeId (void)

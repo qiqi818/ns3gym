@@ -368,6 +368,12 @@ public:
     (const uint64_t imsi, const uint16_t cellId, const uint16_t rnti,
     const State oldState, const State newState);
 
+    /**
+   * The `DataRadioBearerMap` attribute. List of UE DataRadioBearerInfo by
+   * DRBID.
+   */
+  std::map <uint8_t, Ptr<LteDataRadioBearerInfo> > m_drbMap;
+
 private:
 
   /** 
@@ -471,11 +477,7 @@ private:
 
   uint8_t m_lastAllocatedDrbid; ///< last allocated Data Radio Bearer ID
 
-  /**
-   * The `DataRadioBearerMap` attribute. List of UE DataRadioBearerInfo by
-   * DRBID.
-   */
-  std::map <uint8_t, Ptr<LteDataRadioBearerInfo> > m_drbMap;
+
 
   /**
    * The `Srb0` attribute. SignalingRadioBearerInfo for SRB0.

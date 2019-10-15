@@ -115,6 +115,44 @@ public:
    */
   void TransmissionModeConfigurationUpdate (uint16_t rnti, uint8_t txMode);
 
+
+  /**
+   * \brief CSched LC config request
+   *
+   * \param params FfMacCschedSapProvider::CschedLcConfigReqParameters
+   */
+  void DoCschedLcConfigReq (const struct FfMacCschedSapProvider::CschedLcConfigReqParameters& params);
+   /**
+   * Vectors of UE's LC info
+  */
+  std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> m_rlcBufferReq;
+
+    /**
+   * \brief LC active per flow
+   *
+   * \param rnti the RNTI
+   * \returns the LC active per flow
+   */
+  unsigned int LcActivePerFlow (uint16_t rnti);
+    /// Refresh DL CQI maps
+  void RefreshDlCqiMaps (void);
+    /**
+  * Map of UE's DL CQI P01 received
+  */
+  std::map <uint16_t,uint8_t> m_p10CqiRxed;
+  /**
+  * Map of UE's timers on DL CQI P01 received
+  */
+  std::map <uint16_t,uint32_t> m_p10CqiTimers;
+
+  /**
+  * Map of UE's DL CQI A30 received
+  */
+  std::map <uint16_t,SbMeasResult_s> m_a30CqiRxed;
+  /**
+  * Map of UE's timers on DL CQI A30 received
+  */
+  std::map <uint16_t,uint32_t> m_a30CqiTimers;
 private:
   //
   // Implementation of the CSCHED API primitives
@@ -135,12 +173,7 @@ private:
    */
   void DoCschedUeConfigReq (const struct FfMacCschedSapProvider::CschedUeConfigReqParameters& params);
 
-  /**
-   * \brief CSched LC config request
-   *
-   * \param params FfMacCschedSapProvider::CschedLcConfigReqParameters
-   */
-  void DoCschedLcConfigReq (const struct FfMacCschedSapProvider::CschedLcConfigReqParameters& params);
+
 
   /**
    * \brief CSched LC release request
@@ -246,13 +279,7 @@ private:
    */
   int GetRbgSize (int dlbandwidth);
 
-  /**
-   * \brief LC active per flow
-   *
-   * \param rnti the RNTI
-   * \returns the LC active per flow
-   */
-  unsigned int LcActivePerFlow (uint16_t rnti);
+
 
   /**
    * \brief Estimate UL SINR
@@ -263,8 +290,7 @@ private:
    */
   double EstimateUlSinr (uint16_t rnti, uint16_t rb);
 
-  /// Refresh DL CQI maps
-  void RefreshDlCqiMaps (void);
+
   /// Refresh UL CQI maps
   void RefreshUlCqiMaps (void);
 
@@ -306,12 +332,12 @@ private:
   */
   void RefreshHarqProcesses ();
 
+  std::string m_test;
+  std::string m_cellid;
+
   Ptr<LteAmc> m_amc; ///< AMC
 
-  /**
-   * Vectors of UE's LC info
-  */
-  std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> m_rlcBufferReq;
+ 
 
 
   /**
@@ -325,23 +351,7 @@ private:
   std::map <uint16_t, pfsFlowPerf_t> m_flowStatsUl;
 
 
-  /**
-  * Map of UE's DL CQI P01 received
-  */
-  std::map <uint16_t,uint8_t> m_p10CqiRxed;
-  /**
-  * Map of UE's timers on DL CQI P01 received
-  */
-  std::map <uint16_t,uint32_t> m_p10CqiTimers;
 
-  /**
-  * Map of UE's DL CQI A30 received
-  */
-  std::map <uint16_t,SbMeasResult_s> m_a30CqiRxed;
-  /**
-  * Map of UE's timers on DL CQI A30 received
-  */
-  std::map <uint16_t,uint32_t> m_a30CqiTimers;
 
   /**
   * Map of previous allocated UE per RBG
