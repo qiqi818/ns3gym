@@ -152,7 +152,11 @@ public:
   /**
   * Map of UE's timers on DL CQI A30 received
   */
+  Ptr<LteAmc> m_amc; ///< AMC
   std::map <uint16_t,uint32_t> m_a30CqiTimers;
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret;
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret_p;
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret_p2;
 private:
   //
   // Implementation of the CSCHED API primitives
@@ -335,7 +339,7 @@ private:
   std::string m_test;
   std::string m_cellid;
 
-  Ptr<LteAmc> m_amc; ///< AMC
+ 
 
  
 

@@ -634,6 +634,7 @@ LteUePhy::GenerateMixedCqiReport (const SpectrumValue& sinr)
       mixedSinr /= m_dataInterferencePower;
       m_dataInterferencePowerUpdated = false;
       NS_LOG_LOGIC ("data interf measurement available, SINR = " << mixedSinr);
+      // std::cout << "data interf measurement available, SINR = " << mixedSinr << std::endl;
     }
   else
     {
@@ -641,6 +642,7 @@ LteUePhy::GenerateMixedCqiReport (const SpectrumValue& sinr)
       // there and we have only noise at the denominator of SINR
       mixedSinr /= (*m_noisePsd);
       NS_LOG_LOGIC ("no data interf measurement available, SINR = " << mixedSinr);
+      // std::cout << "no data interf measurement available, SINR = " << mixedSinr << std::endl;
     }
 
   /*
@@ -662,7 +664,8 @@ LteUePhy::GenerateMixedCqiReport (const SpectrumValue& sinr)
     {
       mixedSinr[m_dlBandwidth-1-i] = avgMixedSinr;
     }
-
+  Sinr = mixedSinr;
+  // std::cout << "mixedSinr = " << mixedSinr << std::endl;
   GenerateCqiRsrpRsrq (mixedSinr);
 }
 
@@ -681,6 +684,7 @@ LteUePhy::ReportDataInterference (const SpectrumValue& interf)
 
   m_dataInterferencePowerUpdated = true;
   m_dataInterferencePower = interf;
+  // std::cout << interf << std::endl;
 }
 
 void

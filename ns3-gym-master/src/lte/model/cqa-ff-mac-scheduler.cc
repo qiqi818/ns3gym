@@ -390,6 +390,8 @@ CqaFfMacScheduler::DoCschedLcReleaseReq (const struct FfMacCschedSapProvider::Cs
       std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator temp;
       while (it!=m_rlcBufferReq.end ())
         {
+          //std::cout << "+++++++++++++++++++++++++++++++++++++++++++++++++++++" << std::endl;
+          
           if (((*it).first.m_rnti == params.m_rnti) && ((*it).first.m_lcId == params.m_logicalChannelIdentity.at (i)))
             {
               temp = it;
@@ -2029,13 +2031,13 @@ CqaFfMacScheduler::DoSchedUlTriggerReq (const struct FfMacSchedSapProvider::Sche
       if (!allocated)
         {
           // unable to allocate new resource: finish scheduling
-//          m_nextRntiUl = (*it).first;
-//          if (ret.m_dciList.size () > 0)
-//            {
-//              m_schedSapUser->SchedUlConfigInd (ret);
-//            }
-//          m_allocationMaps.insert (std::pair <uint16_t, std::vector <uint16_t> > (params.m_sfnSf, rbgAllocationMap));
-//          return;
+  //          m_nextRntiUl = (*it).first;
+  //          if (ret.m_dciList.size () > 0)
+  //            {
+  //              m_schedSapUser->SchedUlConfigInd (ret);
+  //            }
+  //          m_allocationMaps.insert (std::pair <uint16_t, std::vector <uint16_t> > (params.m_sfnSf, rbgAllocationMap));
+  //          return;
           break;
         }
 
@@ -2244,7 +2246,7 @@ void
 CqaFfMacScheduler::DoSchedUlCqiInfoReq (const struct FfMacSchedSapProvider::SchedUlCqiInfoReqParameters& params)
 {
   NS_LOG_FUNCTION (this);
-// retrieve the allocation for this subframe
+  // retrieve the allocation for this subframe
   switch (m_ulCqiFilter)
     {
     case FfMacScheduler::SRS_UL_CQI:

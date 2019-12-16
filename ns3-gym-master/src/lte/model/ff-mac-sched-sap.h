@@ -407,6 +407,7 @@ void
 MemberSchedSapProvider<C>::SchedDlTriggerReq (const struct SchedDlTriggerReqParameters& params)
 {
   m_scheduler->DoSchedDlTriggerReq (params);
+ 
 }
 
 template <class C>

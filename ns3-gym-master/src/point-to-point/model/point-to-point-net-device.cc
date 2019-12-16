@@ -341,6 +341,7 @@ PointToPointNetDevice::Receive (Ptr<Packet> packet)
       // corrupted packet, don't forward this packet up, let it go.
       //
       m_phyRxDropTrace (packet);
+      return;
     }
   else 
     {

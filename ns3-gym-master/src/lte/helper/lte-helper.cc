@@ -1087,6 +1087,7 @@ LteHelper::ActivateDedicatedEpsBearer (Ptr<NetDevice> ueDevice, EpsBearer bearer
 
   uint64_t imsi = ueDevice->GetObject<LteUeNetDevice> ()->GetImsi ();
   uint8_t bearerId = m_epcHelper->ActivateEpsBearer (ueDevice, imsi, tft, bearer);
+
   return bearerId;
 }
 

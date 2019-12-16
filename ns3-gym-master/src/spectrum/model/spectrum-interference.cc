@@ -132,6 +132,7 @@ SpectrumInterference::ConditionallyEvaluateChunk ()
   if (condition)
     {
       SpectrumValue sinr = (*m_rxSignal) / ((*m_allSignals) - (*m_rxSignal) + (*m_noise));
+      m_sinr = sinr;
       Time duration = Now () - m_lastChangeTime;
       NS_LOG_LOGIC ("calling m_errorModel->EvaluateChunk (sinr, duration)");
       m_errorModel->EvaluateChunk (sinr, duration);

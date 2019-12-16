@@ -145,7 +145,9 @@ public:
    */
   Ptr<LteSpectrumPhy> GetUlSpectrumPhy () const;
 
-
+   /// DL power allocation map.
+  //std::map <int, double> m_dlPowerAllocationMap;
+  std::map <int, double> GetDlPowerAllocationMap();
   /**
    * \brief set the resource blocks (a.k.a. sub channels) to be used in the downlink for transmission
    * 
@@ -174,8 +176,8 @@ public:
    * element is j, it means that RB j is not used.
    */
   std::vector<int> GetDownlinkSubChannels (void);
-
-
+  std::vector<int> GetDlDataRbMap();//m_dlDataRbMap; ///< DL data RB map
+  std::list<Ptr<LteControlMessage>> GetDlLteControlMessage();
   /**
    * \brief Generate power allocation map (i.e. tx power level for each RB)
    *
@@ -417,6 +419,11 @@ private:
    * \param srs the SRS
    */
   void CreateSrsReport (uint16_t rnti, double srs);
+
+
+
+
+
 
   /**
    * List of RNTI of attached UEs. Used for quickly determining whether a UE is

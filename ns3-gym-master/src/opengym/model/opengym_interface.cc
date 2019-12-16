@@ -260,10 +260,11 @@ OpenGymInterface::NotifyCurrentState()
 
   // receive act msg form python
   ns3opengym::EnvActMsg envActMsg;
+  
   zmq::message_t reply;
   m_zmq_socket.recv (&reply);
   envActMsg.ParseFromArray(reply.data(), reply.size());
-
+  //std::cout << reply.data() << "----------------++++++++++++++++" << std::endl;
   if (m_simEnd) {
     // if sim end only rx ms and quit
     return;

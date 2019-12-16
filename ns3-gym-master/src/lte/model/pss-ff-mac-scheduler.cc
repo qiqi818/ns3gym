@@ -1931,13 +1931,13 @@ PssFfMacScheduler::DoSchedUlTriggerReq (const struct FfMacSchedSapProvider::Sche
       if (!allocated)
         {
           // unable to allocate new resource: finish scheduling
-//          m_nextRntiUl = (*it).first;
-//          if (ret.m_dciList.size () > 0)
-//            {
-//              m_schedSapUser->SchedUlConfigInd (ret);
-//            }
-//          m_allocationMaps.insert (std::pair <uint16_t, std::vector <uint16_t> > (params.m_sfnSf, rbgAllocationMap));
-//          return;
+  //          m_nextRntiUl = (*it).first;
+  //          if (ret.m_dciList.size () > 0)
+  //            {
+  //              m_schedSapUser->SchedUlConfigInd (ret);
+  //            }
+  //          m_allocationMaps.insert (std::pair <uint16_t, std::vector <uint16_t> > (params.m_sfnSf, rbgAllocationMap));
+  //          return;
     	  break;
         }
 
@@ -2122,7 +2122,7 @@ void
 PssFfMacScheduler::DoSchedUlCqiInfoReq (const struct FfMacSchedSapProvider::SchedUlCqiInfoReqParameters& params)
 {
   NS_LOG_FUNCTION (this);
-// retrieve the allocation for this subframe
+  // retrieve the allocation for this subframe
   switch (m_ulCqiFilter)
     {
     case FfMacScheduler::SRS_UL_CQI:

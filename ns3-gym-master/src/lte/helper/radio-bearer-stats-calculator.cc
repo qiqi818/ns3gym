@@ -66,7 +66,7 @@ RadioBearerStatsCalculator::GetTypeId (void)
                                      &RadioBearerStatsCalculator::GetStartTime), 
                    MakeTimeChecker ())
     .AddAttribute ("EpochDuration", "Epoch duration.", 
-                   TimeValue (Seconds (0.25)), 
+                   TimeValue (Seconds (0.001)), 
                    MakeTimeAccessor (&RadioBearerStatsCalculator::GetEpoch,
                                      &RadioBearerStatsCalculator::SetEpoch), 
                    MakeTimeChecker ())

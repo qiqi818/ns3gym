@@ -435,6 +435,8 @@ public:
   * \return the number of stream indices assigned by this model
   */
   int64_t AssignStreams (int64_t stream);
+  Ptr<LteInterference> m_interferenceData; ///< the data interference
+  Ptr<LteInterference> m_interferenceCtrl; ///< the control interference
 
 private:
   /** 
@@ -497,8 +499,7 @@ private:
   LtePhyRxCtrlEndErrorCallback  m_ltePhyRxCtrlEndErrorCallback; ///< the LTE phy receive control end error callback
   LtePhyRxPssCallback  m_ltePhyRxPssCallback; ///< the LTE phy receive PSS callback
 
-  Ptr<LteInterference> m_interferenceData; ///< the data interference
-  Ptr<LteInterference> m_interferenceCtrl; ///< the control interference
+  
 
   uint16_t m_cellId; ///< the cell ID
   

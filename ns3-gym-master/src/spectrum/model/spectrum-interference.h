@@ -46,6 +46,7 @@ class SpectrumErrorModel;
 class SpectrumInterference : public Object
 {
 public:
+  SpectrumValue m_sinr;
   SpectrumInterference ();
   virtual ~SpectrumInterference ();
 

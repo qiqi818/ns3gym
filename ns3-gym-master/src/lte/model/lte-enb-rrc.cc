@@ -2614,6 +2614,7 @@ LteEnbRrc::DoSendLoadInformation (EpcX2Sap::LoadInformationParams params)
 uint16_t
 LteEnbRrc::AddUe (UeManager::State state, uint8_t componentCarrierId)
 {
+  std::cout << Simulator::Now() << "增加了UE" << std::endl;
   NS_LOG_FUNCTION (this);
   bool found = false;
   uint16_t rnti;

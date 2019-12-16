@@ -30,7 +30,15 @@
 #include <ns3/lte-common.h>
 #include <ns3/lte-amc.h>
 #include <ns3/lte-ffr-sap.h>
+#include <ns3/lte-common.h>
 
+
+#include <set>
+#include <ns3/nstime.h>
+
+
+
+#define NO_SINR -5000
 #define HARQ_PROC_NUM 8
 #define HARQ_DL_TIMEOUT 11
 
@@ -46,6 +54,18 @@ typedef std::vector < RlcPduList_t > DlHarqRlcPduListBuffer_t; // vector of the 
 typedef std::vector < UlDciListElement_s > UlHarqProcessesDciBuffer_t;
 typedef std::vector < uint8_t > UlHarqProcessesStatus_t;
 
+
+/// CGA Flow Performance structure
+struct RrsFlowPerf_t
+{
+  Time flowStart; ///< flow start time
+  unsigned long totalBytesTransmitted;     ///< Total bytes send by eNb for this UE
+  unsigned int lastTtiBytesTransmitted;    ///< Total bytes send by eNB in last tti for this UE
+  double lastAveragedThroughput;           ///< Past average throughput
+  double secondLastAveragedThroughput;     ///< Second last average throughput
+  double targetThroughput;                 ///< Target throughput
+
+};
 
 
 
@@ -100,7 +120,36 @@ public:
    * \param txMode the transmission mode
    */
   void TransmissionModeConfigurationUpdate (uint16_t rnti, uint8_t txMode);
+    /**
+   * Vectors of UE's RLC info
+  */
+  std::list <FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> m_rlcBufferReq;
+  std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> m_rlcBufferReq_1;
 
+  /// Refresh DL CQI maps function
+  void RefreshDlCqiMaps (void);
+
+  /**
+  * Map of UE's DL CQI P01 received
+  */
+  std::map <uint16_t,uint8_t> m_p10CqiRxed;
+  /**
+  * Map of UE's timers on DL CQI P01 received
+  */
+  std::map <uint16_t,uint32_t> m_p10CqiTimers;
+
+  /**
+  * Map of UE's DL CQI A30 received
+  */
+  std::map <uint16_t,SbMeasResult_s> m_a30CqiRxed;
+  /**
+  * Map of UE's timers on DL CQI A30 received
+  */
+  Ptr<LteAmc> m_amc; ///< AMC
+  std::map <uint16_t,uint32_t> m_a30CqiTimers;
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret;
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret_p;
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret_p2;
 private:
   //
   // Implementation of the CSCHED API primitives
@@ -215,6 +264,23 @@ private:
    */
   int GetRbgSize (int dlbandwidth);
 
+
+  /**
+   * LC Active per flow
+   * \param rnti the RNTI
+   * \returns the LC active per flow
+   */
+  unsigned int LcActivePerFlow (uint16_t rnti);
+
+
+  /**
+   * Estimate UL Sinr
+   * \param rnti the RNTI
+   * \param rb the RB
+   * \returns the UL SINR
+   */
+  double EstimateUlSinr (uint16_t rnti, uint16_t rb);
+
   /**
    * \brief Sort RLC buffer request function
    * \param i FfMacSchedSapProvider::SchedDlRlcBufferReqParameters
@@ -223,8 +289,7 @@ private:
    */
   static bool SortRlcBufferReq (FfMacSchedSapProvider::SchedDlRlcBufferReqParameters i,FfMacSchedSapProvider::SchedDlRlcBufferReqParameters j);
 
-  /// Refresh DL CQI maps function
-  void RefreshDlCqiMaps (void);
+  
   /// Refresh UL CQI maps function
   void RefreshUlCqiMaps (void);
 
@@ -263,22 +328,27 @@ private:
   *
   */
   void RefreshHarqProcesses ();
+  std::string m_fdSchedulerType; ///< FD scheduler type
+  uint32_t m_nMux; ///< TD scheduler selects nMux UEs and transfer them to FD scheduler
 
-  Ptr<LteAmc> m_amc; ///< AMC
 
-  /**
-   * Vectors of UE's RLC info
-  */
-  std::list <FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> m_rlcBufferReq;
+
 
   /**
-  * Map of UE's DL CQI P01 received
+  * Map of UE statistics (per RNTI basis) in downlink
   */
-  std::map <uint16_t,uint8_t> m_p10CqiRxed;
+  std::map <uint16_t, RrsFlowPerf_t> m_flowStatsDl;
+
   /**
-  * Map of UE's timers on DL CQI P01 received
+  * Map of UE statistics (per RNTI basis)
   */
-  std::map <uint16_t,uint32_t> m_p10CqiTimers;
+  std::map <uint16_t, RrsFlowPerf_t> m_flowStatsUl;
+  /**
+  * Map of UE logical channel config list
+  */
+  std::map <LteFlowId_t,struct LogicalChannelConfigListElement_s> m_ueLogicalChannelsConfigList;
+
+  
 
   /**
   * Map of previous allocated UE per RBG
@@ -315,6 +385,7 @@ private:
   // Internal parameters
   FfMacCschedSapProvider::CschedCellConfigReqParameters m_cschedCellConfig; ///< CSched cell config
 
+  double m_timeWindow; ///< time window
   uint16_t m_nextRntiDl; ///< RNTI of the next user to be served next scheduling in DL
   uint16_t m_nextRntiUl; ///< RNTI of the next user to be served next scheduling in UL
 
@@ -351,6 +422,8 @@ private:
   std::vector <struct RachListElement_s> m_rachList; ///< RACH list
   std::vector <uint16_t> m_rachAllocationMap; ///< RACH allocation map
   uint8_t m_ulGrantMcs; ///< MCS for UL grant (default 0)
+  std::string m_CqaMetric; ///< CQA metric name
+  uint8_t m_flag;
 };
 
 } // namespace ns3

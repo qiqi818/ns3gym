@@ -489,6 +489,18 @@ LteEnbPhy::GeneratePowerAllocationMap (uint16_t rnti, int rbId)
   m_dlPowerAllocationMap.insert (std::pair<int, double> (rbId, rbgTxPower));
 }
 
+std::map <int, double> 
+LteEnbPhy::GetDlPowerAllocationMap()
+{
+  return m_dlPowerAllocationMap;
+}
+
+std::list<Ptr<LteControlMessage>>
+LteEnbPhy::GetDlLteControlMessage()
+{
+return GetControlMessages ();
+
+}
 Ptr<SpectrumValue>
 LteEnbPhy::CreateTxPowerSpectralDensity ()
 {
@@ -813,7 +825,11 @@ LteEnbPhy::SendDataChannels (Ptr<PacketBurst> pb)
   ctrlMsgList.clear ();
   m_downlinkSpectrumPhy->StartTxDataFrame (pb, ctrlMsgList, DL_DATA_DURATION);
 }
-
+std::vector <int> 
+LteEnbPhy::GetDlDataRbMap()
+{
+  return m_dlDataRbMap;
+}
 
 void
 LteEnbPhy::EndSubFrame (void)

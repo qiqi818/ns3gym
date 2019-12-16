@@ -11,7 +11,7 @@ class TRNNConfig(object):
 
     # 模型参数
     num_instance = 1
-    num_step = 84                               # 时间步长/展开的rnn的block个数
+    num_step = 1200                               # 时间步长/展开的rnn的block个数
     num_classes = 12                            # 类别数====用户所在波束下的所有信道数
 
     # seq_length_batch = [64 for i in range(shape[0])]
@@ -20,7 +20,7 @@ class TRNNConfig(object):
     hidden_dim = 128                            # 隐藏层神经元
     rnn = 'gru'                                 # lstm 或 gru
 
-    dropout_keep_prob = 0.8                     # dropout保留比例
+    dropout_keep_prob = 0.3                     # dropout保留比例
     learning_rate = 1e-3                        # 学习率
     gamma = 0.95
 
@@ -39,7 +39,7 @@ class ResourceAllocationRNN(object):
         self.config = config
 
         # 三个待输入的数据
-        self.input_x = tf.placeholder(tf.float32, [None,  self.config.num_step, 2], name='input_x')
+        self.input_x = tf.placeholder(tf.float32, [None,  self.config.num_step, 4], name='input_x')
         shape = self.input_x.shape.as_list()
         # print(shape[0])
         self.seq_length = shape[0]
@@ -99,19 +99,14 @@ class ResourceAllocationRNN(object):
             # print("---------------------------3")
             # 分类器
             self.logits = tf.layers.dense(fc, self.config.num_classes, name='fc2')
-            # print(self.logits)
             # self.logits = tf.unstack(self.logits, axis=0)
-            # print("logit", self.logits)
             self.y_pred_cls = tf.argmax(tf.nn.softmax(self.logits), 2) # 预测类别
-            # print("y_pred_cls", self.y_pred_cls)
-            
-            # print("==",tf.nn.softmax(self.logits))
-            # print(self.y_pred_cls.eval())
 
         with tf.name_scope("optimize"):
             # 损失函数，交叉熵
             cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits, labels=self.input_y)
             self.loss = tf.reduce_mean(cross_entropy * self.discounted_episode_rewards_norm)
+
             # print("---loss:",self.loss)
             # 优化器
             self.optim = tf.train.AdamOptimizer(learning_rate=self.config.learning_rate).minimize(self.loss)
@@ -129,12 +124,12 @@ class ResourceAllocationRNN(object):
         action = np.zeros([7, 12])
         self.sess = tf.Session()
         self.sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
-        channel_of_user = self.sess.run(self.y_pred_cls, feed_dict={self.input_x: observation_step, self.keep_prob: 1.0})                         # channel_of_user表示所有用户经rnn网络选择的信道 （1*84维的向量）
+        channel_of_user = self.sess.run(self.y_pred_cls, feed_dict={self.input_x: observation_step, self.keep_prob: 0.3})                         # channel_of_user表示所有用户经rnn网络选择的信道 （1*84维的向量）
         # channel_of_user = self.sess.run(self.y_pred_cls, feed_dict = {self.input_x: kr.preprocessing.sequence.pad_sequences(np.vstack(observation).T,self.seq_length),self.keep_prob:1.0})
         # print("channel_of_user:", channel_of_user)
 
         for instance in range(self.config.num_instance):
-            for index_of_user in range(84):
+            for index_of_user in range(1200):
                 RNTI_of_user = observation_step[instance][index_of_user][1]
                 if RNTI_of_user == 0:
                     continue
@@ -145,6 +140,36 @@ class ResourceAllocationRNN(object):
                 action[beam_of_user][channel_of_user[instance][index_of_user]] = RNTI_of_user    # 将用户的RNTI填充至信道占用矩阵的相应位置
             # print("action", action)
         return action
+
+
+        
+
+    def choose_action2(self, observation_step):
+        """
+            Choose action based on observation
+        """
+        action = np.zeros([7, 12])
+        tj = np.zeros([7, 12])
+        self.sess = tf.Session()
+        self.sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
+        channel_of_user = self.sess.run(self.y_pred_cls, feed_dict={self.input_x: observation_step, self.keep_prob: 0.3})                         # channel_of_user表示所有用户经rnn网络选择的信道 （1*84维的向量）
+        # channel_of_user = self.sess.run(self.y_pred_cls, feed_dict = {self.input_x: kr.preprocessing.sequence.pad_sequences(np.vstack(observation).T,self.seq_length),self.keep_prob:1.0})
+        # print("channel_of_user:", channel_of_user)
+
+        for instance in range(self.config.num_instance):
+            for index_of_user in range(1200):
+                RNTI_of_user = observation_step[instance][index_of_user][1]
+                if RNTI_of_user == 0:
+                    continue
+                beam_of_user = observation_step[instance][index_of_user][0]
+                # if action[beam_of_user][channel_of_user[instance][index_of_user]] != 0:
+                #     continue
+                #print(beam_of_user)      # beam_of_user表示该用户所要接入的波束
+                action[beam_of_user][channel_of_user[instance][index_of_user]] = RNTI_of_user    # 将用户的RNTI填充至信道占用矩阵的相应位置
+                tj[beam_of_user][channel_of_user[instance][index_of_user]] = tj[beam_of_user][channel_of_user[instance][index_of_user]] + 1
+            # print("action", action)
+        return action,tj
+
 
     def store_transition(self, s, a, r):
         """
@@ -164,7 +189,7 @@ class ResourceAllocationRNN(object):
         # Store actions as list of arrays
         # e.g. for input_y = 2 -> [ array([ 1.,  0.]), array([ 0.,  1.]), array([ 0.,  1.]), array([ 1.,  0.]) ]
         single_step_action = np.zeros([self.config.num_instance, self.config.num_step, self.config.num_classes])
-        channel_of_user = self.sess.run(self.y_pred_cls, feed_dict={self.input_x: s, self.keep_prob: 1.0})
+        channel_of_user = self.sess.run(self.y_pred_cls, feed_dict={self.input_x: s, self.keep_prob: 0.3})
 
         for instance in range(self.config.num_instance):
             for line in range(self.config.num_step):
@@ -172,7 +197,7 @@ class ResourceAllocationRNN(object):
                 single_step_action[instance][line][vertical] = 1
         # print("single_step_action", single_step_action)
         self.episode_single_step_actions.append(single_step_action)
-
+        print("---episode_rewards: ",self.episode_rewards)
         return self.episode_single_step_actions, self.episode_observations, self.episode_rewards
 
     def learn(self):
@@ -180,35 +205,45 @@ class ResourceAllocationRNN(object):
         discounted_episode_rewards_norm = self.discount_and_norm_rewards()
 
         # Train on episode
-        
+        print("----rewards:", discounted_episode_rewards_norm)
         self.sess.run(self.optim, feed_dict={
-            self.input_x: np.vstack(self.episode_observations),
-            self.input_y: np.vstack(self.episode_single_step_actions),
+            self.input_x: np.vstack(self.episode_observations[0:len(self.episode_observations)-3]),
+            self.input_y: np.vstack(self.episode_single_step_actions[0:len(self.episode_single_step_actions)-3]),
             self.discounted_episode_rewards_norm: discounted_episode_rewards_norm,
-            self.keep_prob: 1.0
+            self.keep_prob: 0.3
         })
-
+        print("----loss: ",self.sess.run(self.loss, feed_dict={
+            self.input_x: np.vstack(self.episode_observations[0:len(self.episode_observations)-3]),
+            self.input_y: np.vstack(self.episode_single_step_actions[0:len(self.episode_single_step_actions)-3]),
+            self.discounted_episode_rewards_norm: discounted_episode_rewards_norm,
+            self.keep_prob: 0.3
+        }))
         # Reset the episode data
-        self.episode_single_step_actions,self.episode_observations, self.episode_actions, self.episode_rewards = [], [], [], []
-
+        self.episode_observations = self.episode_observations[len(self.episode_observations)-3:]
+        self.episode_actions = self.episode_actions[len(self.episode_actions)-3:]
+        self.episode_single_step_actions = self.episode_single_step_actions[len(self.episode_single_step_actions)-3:]
+        self.episode_rewards = self.episode_rewards[0:3]
+        # self.episode_single_step_actions,self.episode_observations, self.episode_actions, self.episode_rewards = [], [], [], []
+        
         # Save checkpoint
         if self.save_path is not None:
             save_path = self.saver.save(self.sess, self.save_path)
             # print("Model saved in file: %s" % save_path)
+        print("---loss:",self.loss)
+        
 
         return discounted_episode_rewards_norm
 
     def discount_and_norm_rewards(self):
 
-        discounted_episode_rewards = np.zeros([10, self.config.num_step])
+        discounted_episode_rewards = np.zeros([len(self.episode_rewards)-3, self.config.num_step])
         # print("shape_of_discounted_episode_rewards", discounted_episode_rewards.shape)
         cumulative = 0
-        for t in reversed(range(len(self.episode_rewards))):
+        for t in reversed(range(len(self.episode_rewards[3:]))):
             cumulative = cumulative * self.config.gamma + self.episode_rewards[t]
-            discounted_episode_rewards[t][83] = cumulative
-            # discounted_episode_rewards -= np.mean(discounted_episode_rewards)
-            # discounted_episode_rewards /= np.std(discounted_episode_rewards)
-        # print("discounted_episode_rewards", discounted_episode_rewards)
+            discounted_episode_rewards[t][1199] = cumulative
+            discounted_episode_rewards -= np.mean(discounted_episode_rewards)
+            discounted_episode_rewards /= np.std(discounted_episode_rewards)
 
         return discounted_episode_rewards
 

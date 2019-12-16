@@ -73,16 +73,44 @@ try:
             # ---------------------------------------------------------------------------------------
             observation = []#环境的观测值，状态observation
             #状态是最长为84的[CellId,RNTI]组合，不足84则补零
-            if len(obs)<168:
-                for kk in range(168 - len(obs)):
+            if len(obs)<4800:
+                for kk in range(4800 - len(obs)):
                     obs.append(0)
-            for j in range(84):
+            for j in range(1200):
                 #状态是最长为84的[CellId,RNTI]组合
-                observation.append([obs[2*j],obs[2*j+1]])
+                observation.append([obs[4*j],obs[4*j+1],obs[4*j+2],obs[4*j+3]])
 
             observation_step = [observation] 
-            #将状态输入RNN选取动作  
-            action_step = RNN.choose_action(observation_step)
+            
+            
+            # 将状态输入RNN选取动作  
+            # if stepIdx < 1:
+            #     action_step = RNN.choose_action(observation_step)
+            # print(observation_step)
+            # if stepIdx < 500:
+            #     tj = np.zeros([7, 12])
+            #     action_step = np.zeros([7, 12])
+            #     for q in range(7):
+            #         id = 0
+            #         for p in range(len(observation_step[0])):
+            #             if observation_step[0][p][0] == q and observation_step[0][p][1] > 0:
+            #                 action_step[q][id] = observation_step[0][p][1]
+            #                 tj[q][id]+=1
+            #                 id += 1
+            #                 if id == 12:
+            #                     break
+               
+            # else:
+            action_step,tj = RNN.choose_action2(observation_step)
+            print(action_step)
+            print(tj)
+            # r = 0
+            # for i in range(7):
+            #     for j in range(12):
+            #         if tj[i][j] == 1:
+            #             r += 100
+            #         if tj[i][j] > 1:
+            #             r -= ((tj[i][j]-1) * 10)
             action_list = []
             #将动作以[CellId1,RNTI1,资源编号1,CellId2,RNTI2,资源编号2,……]的形式保存在action_list中
             for x in range(7):
@@ -103,7 +131,7 @@ try:
             
             #step函数，将动作action_传给ns3中执行下去，并获得ns3中的反馈
             obs, reward_step, done, info = env.step(action_)
-
+            # reward_step  = r
             ay.append(reward_step)
             print("---reward: ", reward_step)
             print("-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-")
@@ -113,12 +141,12 @@ try:
             plt.clf()              # 清除之前画的图
             plt.plot(ax,ay)        # 画出当前 ax 列表和 ay 列表中的值的图形
             plt.xlabel('step')
-            plt.ylabel('throughout')
+            plt.ylabel('reward')
             plt.pause(0.1)         # 暂停一秒
-            #plt.ioff()             # 关闭画图的窗口
+            plt.ioff()             # 关闭画图的窗口
             
             #每经历10个step，网络进行一次学习
-            if  stepIdx%10 == 0:
+            if  stepIdx > 0 and (stepIdx+1)%10 == 0:
                 discounted_episode_rewards_norm = RNN.learn()
 
 

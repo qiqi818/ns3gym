@@ -303,6 +303,7 @@ public:
     (uint16_t rnti, uint16_t cellId, double rsrp, double rsrq,
      bool isServingCell, uint8_t componentCarrierId);
 
+  SpectrumValue Sinr;
 private:
 
   /**
@@ -595,6 +596,8 @@ private:
    * RSRP-SINR stats.
    */
   uint16_t m_rsrpSinrSampleCounter;
+
+  
 
   /**
    * The `ReportUeMeasurements` trace source. Contains trace information

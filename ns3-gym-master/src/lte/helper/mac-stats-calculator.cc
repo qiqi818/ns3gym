@@ -131,6 +131,7 @@ MacStatsCalculator::DlScheduling (uint16_t cellId, uint64_t imsi, DlSchedulingCa
   outFile << dlSchedulingCallbackInfo.sizeTb2 << "\t";
   outFile << (uint32_t) dlSchedulingCallbackInfo.componentCarrierId << std::endl;
   outFile.close ();
+
 }
 
 void

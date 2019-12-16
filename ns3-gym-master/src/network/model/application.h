@@ -122,7 +122,7 @@ public:
    */
   typedef void (*StateTransitionCallback)(const std::string &oldState,
                                           const std::string &newState);
-
+ Time m_startTime;         //!< The simulation time that the application will start
 private:
   /**
    * \brief Application specific startup code
@@ -146,7 +146,7 @@ protected:
   virtual void DoInitialize (void);
 
   Ptr<Node>       m_node;   //!< The node that this application is installed on
-  Time m_startTime;         //!< The simulation time that the application will start
+  // Time m_startTime;         //!< The simulation time that the application will start
   Time m_stopTime;          //!< The simulation time that the application will end
   EventId m_startEvent;     //!< The event that will fire at m_startTime to start the application
   EventId m_stopEvent;      //!< The event that will fire at m_stopTime to end the application
