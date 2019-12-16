@@ -68,29 +68,32 @@
 #include <iostream>
 //FlowMonitor
 #include "ns3/flow-monitor-module.h"
-
 using namespace ns3;
 using namespace std;
-vector<double> delay_buget = {100,150,50,300,100,300,100,300,300};//时延预算
+vector<double> delat_buget = {100,150,50,300,100,300,100,300,300};
 float stepCounter = -1; //step计数
 
-  //和奖励相关的参数 用结构体存储
   struct rParameters {
-    uint32_t cellid;                    //小区id
-    map<uint32_t, uint32_t> peruerbbitmap;  //调度结果
-    map<uint32_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> rlcbuffer;  //rlc层信息
-    map<uint32_t, vector<double>> phyrxstates;  //物理层接收情况
-    map<uint32_t, double> rlcrxstate;   //rlc层接收情况
-    map<uint32_t, vector<uint32_t>> uestates;  //ue的信息，现有cqi和qci信息
-    map<uint32_t, SpectrumValue> sinr;        //信干噪比
+    //map的key都为rnti
+    uint32_t cellid;
+    map<uint32_t, uint32_t> peruerbbitmap;  //调度情况
+    map<uint32_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> rlcbuffer;//rlc层初始情况   队首时延和待传数据量
+    map<uint32_t, vector<double>> phyrxstates;//物理层接收状况统计
+    map<uint32_t, double> rlcrxstate;//调度完成后rlc层情况   队首时延和剩余待传数据量
+    map<uint32_t, vector<uint32_t>> uestates;  //ue的相关信息  现有cqi和qci
+    map<uint32_t, SpectrumValue> sinr;   //信干噪比
   };
-//时刻<小区<参数>>
+
+
+
 list< vector< struct rParameters > > rewardParameters;
 
 
+int num_ue_ = 0;
+// Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
 Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
 Ptr<PointToPointEpcHelper> epcHelper = CreateObject<PointToPointEpcHelper> ();
-FlowMonitorHelper flowmon;
+ FlowMonitorHelper flowmon;
 Ptr<FlowMonitor> monitor;
 NetDeviceContainer enbDevs;
 NetDeviceContainer ueDevs;
@@ -120,18 +123,18 @@ split (const char *s, const char *delim)
     }
   return result;
 }
-
+/*
+  获取物理层接收状态的回调函数
+*/
 void DlPhyReceptionCallback(Ptr<PhyRxStatsCalculator> phyRxStats,
                                               std::string path, PhyReceptionStatParameters params)
 {
-  
-  
-  // cout <<"trace--------------" << endl;
-  if(rewardParameters.size() > 1) //若不是第一个时刻，则物理层接收信息基于前面时刻结果进行计算
-  {
+
+  if(rewardParameters.size() > 1)
+  {//若不是第一个tti，则从上一个tti的结果的基础上进行追加
     for(uint32_t i = 0; i < enbDevs.GetN(); i++)
     {
-      rewardParameters.back() = *(--(--rewardParameters.end()));
+      rewardParameters.back()[i].phyrxstates = (*(--(--rewardParameters.end())))[i].phyrxstates;
     }
     map<uint32_t, vector<double>>::iterator it = rewardParameters.back()[params.m_cellId-1].phyrxstates.find(params.m_rnti);
     if(it == rewardParameters.back()[params.m_cellId-1].phyrxstates.end() || (it != rewardParameters.back()[params.m_cellId-1].phyrxstates.end() && (int64_t)it->second[1] != params.m_timestamp))
@@ -144,7 +147,8 @@ void DlPhyReceptionCallback(Ptr<PhyRxStatsCalculator> phyRxStats,
             // 3 正确传输的块数
             // 4 总传输量
             // 5 传对的量
-        vector<double> temp(6,0);
+            // 6 最近一次发包是否正确
+        vector<double> temp(7,0);
         temp[0] = params.m_timestamp;
         temp[1] = params.m_timestamp;
         temp[2] = 1;
@@ -153,11 +157,13 @@ void DlPhyReceptionCallback(Ptr<PhyRxStatsCalculator> phyRxStats,
         {
           temp[3] = 1;
           temp[5] = params.m_size;
+          temp[6] = 1;
         }
         else
         {
           temp[3] = 0;
           temp[3] = 0;
+          temp[6] = 0;
         }
         rewardParameters.back()[params.m_cellId-1].phyrxstates.insert(pair<uint32_t, vector<double>>(params.m_rnti, temp));
       }
@@ -170,25 +176,27 @@ void DlPhyReceptionCallback(Ptr<PhyRxStatsCalculator> phyRxStats,
         {
           it->second[3] += 1;
           it->second[5] += params.m_size;
+          it->second[6] = 1;
         }
         else
         {
           it->second[3] += 0;
           it->second[3] += 0;
+          it->second[6] = 0;
         }
       }
     }
 
 
   }
-  else//若是第一个时刻，则初始化从0开始
-  {
+  else
+  {//若是第一个tti则一切从零开始初始化
      map<uint32_t, vector<double>>::iterator it = rewardParameters.back()[params.m_cellId-1].phyrxstates.find(params.m_rnti);
     if(it == rewardParameters.back()[params.m_cellId-1].phyrxstates.end() || (it != rewardParameters.back()[params.m_cellId-1].phyrxstates.end() && (int64_t)it->second[1] != params.m_timestamp))
     {
       if(it == rewardParameters.back()[params.m_cellId-1].phyrxstates.end())
       {
-        vector<double> temp(6,0);
+        vector<double> temp(7,0);
         temp[0] = params.m_timestamp;
         temp[1] = params.m_timestamp;
         temp[2] = 1;
@@ -197,11 +205,13 @@ void DlPhyReceptionCallback(Ptr<PhyRxStatsCalculator> phyRxStats,
         {
           temp[3] = 1;
           temp[5] = params.m_size;
+          temp[6] = 1;
         }
         else
         {
           temp[3] = 0;
           temp[3] = 0;
+          temp[6] = 0;
         }
         rewardParameters.back()[params.m_cellId-1].phyrxstates.insert(pair<uint32_t, vector<double>>(params.m_rnti, temp));
       }
@@ -214,28 +224,22 @@ void DlPhyReceptionCallback(Ptr<PhyRxStatsCalculator> phyRxStats,
         {
           it->second[3] += 1;
           it->second[5] += params.m_size;
+          it->second[6] = 1;
         }
         else
         {
           it->second[3] += 0;
           it->second[3] += 0;
+          it->second[6] = 0;
         }
       }
     }
   }
-
-
-  // cout << Simulator::Now() << endl;
-  // cout << params.m_timestamp << endl;
-  // cout << "cellid: " << params.m_cellId-1 << endl;
-  // cout << "rnti: " << params.m_rnti << endl;
-  // cout << params.m_size << endl;
-  // cout << "---------------------------" << endl;
 }
 
+
 Ptr<PhyRxStatsCalculator> m_phyRxStats = CreateObject<PhyRxStatsCalculator> ();
-void 
-tracephyrx()//用以获取物理层传输信息的trace
+void tracephyrx()
 {
   Config::Connect ("/NodeList/*/DeviceList/*/ComponentCarrierMapUe/*/LteUePhy/DlSpectrumPhy/DlPhyReception",
                    MakeBoundCallback (&DlPhyReceptionCallback, m_phyRxStats));
@@ -314,13 +318,12 @@ MyGetObservation (void)
   Ptr<OpenGymBoxContainer<uint32_t>> box = CreateObject<OpenGymBoxContainer<uint32_t>> (
       shape); //创建OpenGymBoxContainer用以包装存储observation，进而传递给gym
   list<list<int>> ls;
-
   for (uint16_t i = 0; i < 7; i++)
     {
       PointerValue ptr;
       enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetCcMap ().at (0)->GetAttribute (
           "FfMacScheduler", ptr);
-      Ptr<LteEnbRrc> enbRrc = enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetRrc ();
+     Ptr<LteEnbRrc> enbRrc = enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetRrc ();
 
       Ptr<FfMacScheduler> ff = ptr.Get<FfMacScheduler> ();
       Ptr<DacFfMacScheduler> pff = ff->GetObject<DacFfMacScheduler> ();
@@ -332,14 +335,10 @@ MyGetObservation (void)
 
           cout << i+1 << "-" << it->first.m_rnti  << ":"<< (uint16_t)(it->first.m_lcId) <<  endl;
           cout << "时延tx:---" << it->second.m_rlcTransmissionQueueHolDelay << "时延retx:---" << it->second.m_rlcRetransmissionHolDelay<< " tx:" << it->second.m_rlcTransmissionQueueSize << " retx:" << it->second.m_rlcRetransmissionQueueSize << endl;
-        
           if(enbRrc->HasUeManager(it->first.m_rnti))
         {
-          //获取qci
           std::map <uint8_t, Ptr<LteDataRadioBearerInfo> >::iterator pdrb = enbRrc->GetUeManager(it->first.m_rnti)->m_drbMap.begin();
           qci = (++pdrb)->second->m_epsBearer.qci;
-     
-          
          }
         Ptr<LteAmc> amc = pff-> m_amc;
         uint8_t cqi = pff->m_p10CqiRxed.find(it->first.m_rnti)->second;
@@ -350,16 +349,17 @@ MyGetObservation (void)
         {
           trans = it->second.m_rlcTransmissionQueueSize;
           nOfprb = 2;
+          //统计每个ue需要多少个prb
           while((uint32_t)amc->GetDlTbSizeFromMcs(mcs, nOfprb) / 8 < it->second.m_rlcTransmissionQueueSize && nOfprb <= 24)
-          {//计算需要多少prb
+          {
             nOfprb += 2;
           } 
         }
         
-        
+        //拆分状态
         for(int k = 0 ; k < nOfprb/2; k++)
         {
-          //拆分请求
+
           list<int> temp;
           if (it->first.m_rnti != 0 && it->second.m_rlcTransmissionQueueSize != 0 && trans > 0)
             {
@@ -377,12 +377,13 @@ MyGetObservation (void)
             
                 if(enbRrc->HasUeManager(it->first.m_rnti))
                 {
+                  
+                  
                 temp.push_back (qci);
                 
                 }
                 else
                 {
-             
                   temp.push_back (9);
                 
                 }
@@ -391,7 +392,7 @@ MyGetObservation (void)
 
         }
         }
-      ls.sort (); //依等待传输的数据量排序，待商榷
+      ls.sort (); //依等待传输的数据量排序
     }
   uint16_t num_ue = 0; //统计总的业务请求数
   for (list<list<int>>::iterator it = ls.begin (); it != ls.end () && num_ue < 1200; it++)
@@ -405,7 +406,7 @@ MyGetObservation (void)
       num_ue++;
     }
 
-  
+  num_ue_ = num_ue;
 
   //进行补0
   if (ls.size () <= 1200)
@@ -418,7 +419,10 @@ MyGetObservation (void)
           box->AddValue (0);
         }
     }
-  else{}
+  else
+    {
+    }
+
 
   return box;
 }
@@ -481,8 +485,6 @@ MyExecuteActions (Ptr<OpenGymDataContainer> action)
       enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetCcMap ().at (0)->GetAttribute (
           "FfMacScheduler", ptr); //获取波束(eNB)i的调度器
       Ptr<FfMacScheduler> ff = ptr.Get<FfMacScheduler> ();
-      // ac_s[i] = to_string(i) + " " + ac_s[i]; 
-      // cout << "===" << ac_s[i].size() << endl;
       StringValue c;
       //通过SetAttribute将动作参数传到调度器中
       ff->SetAttribute ("test", StringValue (ac_s[i]));
@@ -504,9 +506,8 @@ float
 MyGetReward (void)
 {
 
-
-
-  tracephyrx();//获取物理层接收信息
+  //用trace获取物理层接收状态
+  tracephyrx();
   vector< struct rParameters > rv(enbDevs.GetN());
  
   for(uint8_t i = 0; i < 7; i++)
@@ -567,86 +568,41 @@ MyGetReward (void)
         }
         r.rlcbuffer = rlcbuffer;  //RLCBUFFER信息
 
-
-
-
-
-        //原始的读取文件获取物理层接收信息的方法
-        // map<uint32_t, vector<double>> phy_rxstates;
-        // ifstream file;
-        // file.open ("/home/liqi/ns3-gym/ns3-gym-master/DlRxPhyStats.txt"); //打开系统生成的日志
-        // char szbuff[1024] = {0};
-        // string za;
-
-        // Time tim = Simulator::Now (); //获取系统当前时刻
-      
-        // file.getline (szbuff, 1024);
-        // while (!file.eof ())
-        //   {
-        //     // tobn += 1;
-        //     file.getline (szbuff, 1024);
-        //     za = szbuff;
-        //     vector<string> sp = split (za.c_str (), "\t");
-        //     //获取系统上个时刻的日志信息，得到需要的数据
-        //     if (sp.size () == 12 && stoi(sp[1].c_str()) == i+1)
-        //       {
-        //         if(phy_rxstates.find(stoi(sp[3].c_str())) == phy_rxstates.end())
-        //         {
-        //           vector<double> temp(6,0);
-        //           //0 第一次发传输时间
-        //           //1 最后一次传输时间
-        //           //2 总传送块数
-        //           //3 正确传输的块数
-        //           //4 总传输量
-        //           //5 传对的量
-                  
-        //           temp[0] = stoi(sp[0].c_str());
-        //           temp[1] = stoi(sp[0].c_str());
-        //           temp[2] += 1;
-        //           temp[4] += stoi(sp[7].c_str());
-           
-        //           if(stoi(sp[10].c_str()) == 1)
-        //           {
-        //             temp[3] += 1;
-        //             temp[5] += stoi(sp[7].c_str());
-        //           }
-        //           phy_rxstates.insert(std::pair<uint32_t, vector<double>>(atoi(sp[3].c_str()), temp));
-
-        //         }
-        //         else
-        //         {
-        //           // vector<double> temp = phy_rxstates.find(atoi(sp[3].c_str()))->second;
-        //           phy_rxstates.find(atoi(sp[3].c_str()))->second[1] = stoi(sp[0].c_str());;
-        //           phy_rxstates.find(atoi(sp[3].c_str()))->second[2] += 1;
-        //           phy_rxstates.find(atoi(sp[3].c_str()))->second[4] += stoi(sp[7].c_str());
-        //           if(stoi(sp[10].c_str()) == 1)
-        //           {
-        //             phy_rxstates.find(atoi(sp[3].c_str()))->second[3] += 1;
-        //             phy_rxstates.find(atoi(sp[3].c_str()))->second[5] += stoi(sp[7].c_str());
-        //           }
-        //           // phy_rxstates.insert(std::pair<uint32_t, vector<double>>(atoi(sp[3].c_str()), temp));
-        //         }
-                
-        //       }
-        //   }
-        //   r.phyrxstates = phy_rxstates;   //物理层接收情况
-          
         rv[i] = r;
         
+
+
+  
+
+
+
   }
   
-  //利用收集的信息计算奖励
+
   rewardParameters.push_back(rv);
-  vector< struct rParameters > rps0;//T时刻
-  vector< struct rParameters > rps1;//T+1
-  vector< struct rParameters > rps3;//T+3
+  //若此TTi没有接收数据，则不会触发tracephyrx，保存上一个TTi的phyrxstates
+  if(rewardParameters.size() > 1)
+  {
+    for(uint32_t i = 0; i < enbDevs.GetN(); i++)
+    {
+      rewardParameters.back()[i].phyrxstates = (*(--(--rewardParameters.end())))[i].phyrxstates;
+    }
+  }
+
+
+  //用收集的参数计算奖励
+  vector< struct rParameters > rps0;
+  vector< struct rParameters > rps1;
+  vector< struct rParameters > rps2;
+  vector< struct rParameters > rps3;
   double reward1 = 0.0; //delay
   double reward2 = 0.0; //吞吐率
   double reward3 = 0.0; //负奖励
   if(rewardParameters.size() == 4)
   {
     rps0 = *(rewardParameters.begin());
-    rps1 = *(++rewardParameters.begin());
+    rps1 = *(++rewardParameters.begin());//
+    rps2 = *(++(++rewardParameters.begin()));
     rps3 = rewardParameters.back();
     
     for(uint32_t i = 0 ; i < enbDevs.GetN(); i++)
@@ -657,13 +613,13 @@ MyGetReward (void)
         if(rps1[i].uestates.find(it->first) != rps1[i].uestates.end())
         {
           uint32_t qci = rps1[i].uestates.find(it->first)->second[1];
-          reward1 += 1.0 - (double)it->second.m_rlcTransmissionQueueHolDelay/delay_buget[qci-1];
+          reward1 += 1.0 - (double)it->second.m_rlcTransmissionQueueHolDelay/delat_buget[qci-1];
         }
       }
 
 
       map<uint32_t, vector<double>>::iterator it1;
-      for(it1 = rps3[i].phyrxstates.begin();it1 != rps3[i].phyrxstates.end(); it1++)
+      for(it1 = rps2[i].phyrxstates.begin();it1 != rps2[i].phyrxstates.end(); it1++)
       {
         reward2 += it1->second[5]/(it1->second[4] + (double)rps0[i].rlcbuffer.find(it1->first)->second.m_rlcTransmissionQueueSize); //已传（传对）/(已传（全部）+待传)
       }
@@ -682,6 +638,8 @@ MyGetReward (void)
           reward3 -= (double)cqi/15;
         }
       }
+      
+      
 
 
 
@@ -690,26 +648,24 @@ MyGetReward (void)
     rewardParameters.erase(rewardParameters.begin());
   }
   
-
   cout << "reward1: " << reward1 << endl;
   cout << "reward2: " << reward2 << endl;
   cout << "reward3: " << reward3 << endl;
-
-
-  return 0.3*reward1+0.65*reward2+0.05*reward3;
+  // return 0.3*reward1+0.65*reward2+0.05*reward3;
+  return reward2;
   
 }
-/*
-ns3中的类似gym中的step函数
- */
-void rlcandsinr()//在每个tti的最后执行，用以获取rlc层本时刻待传数据量
+
+//获取sinr和rlcbuffer信息
+void rlcandsinr()
 {
+  //获取完成调度后的rlcbuffer信息
     for (uint32_t i = 0; i < 7; i++)
     {
       PointerValue ptr;
       enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetCcMap ().at (0)->GetAttribute (
           "FfMacScheduler", ptr);
-      Ptr<LteEnbRrc> enbRrc = enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetRrc ();
+     Ptr<LteEnbRrc> enbRrc = enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetRrc ();
 
       Ptr<FfMacScheduler> ff = ptr.Get<FfMacScheduler> ();
       Ptr<DacFfMacScheduler> pff = ff->GetObject<DacFfMacScheduler> ();
@@ -719,8 +675,8 @@ void rlcandsinr()//在每个tti的最后执行，用以获取rlc层本时刻待�
            it != pff->m_rlcBufferReq.end (); it++)
         {
 
-          // cout << i+1 << "-" << it->first.m_rnti  << ":"<< (uint16_t)(it->first.m_lcId) <<  endl;
-          // cout << "时延tx:---" << it->second.m_rlcTransmissionQueueHolDelay << "时延retx:---" << it->second.m_rlcRetransmissionHolDelay<< " tx:" << it->second.m_rlcTransmissionQueueSize << " retx:" << it->second.m_rlcRetransmissionQueueSize << endl;
+          cout << i+1 << "-" << it->first.m_rnti  << ":"<< (uint16_t)(it->first.m_lcId) <<  endl;
+          cout << "时延tx:---" << it->second.m_rlcTransmissionQueueHolDelay << "时延retx:---" << it->second.m_rlcRetransmissionHolDelay<< " tx:" << it->second.m_rlcTransmissionQueueSize << " retx:" << it->second.m_rlcRetransmissionQueueSize << endl;
           if(rewardParameters.back()[i].rlcbuffer.find(it->first.m_rnti) != rewardParameters.back()[i].rlcbuffer.end())
           {
             double tx = rewardParameters.back()[i].rlcbuffer.find(it->first.m_rnti)->second.m_rlcTransmissionQueueSize - it->second.m_rlcTransmissionQueueHolDelay;
@@ -730,8 +686,9 @@ void rlcandsinr()//在每个tti的最后执行，用以获取rlc层本时刻待�
         }
     }
 
+  
 
-  //获取信干噪比sinr
+  //获取sinr
   for(uint32_t k = 0; k < 7; k++)
   {
     map<uint32_t, SpectrumValue> sinr;
@@ -747,8 +704,8 @@ void rlcandsinr()//在每个tti的最后执行，用以获取rlc层本时刻待�
         SpectrumValue rxSignal = *(interf-> m_interferenceData->m_rxSignal);
         SpectrumValue noise = *(interf-> m_interferenceData->m_noise);
         SpectrumValue interference = allSignals-rxSignal+noise;
-        SpectrumValue sinr_ = rxSignal/interference;//信干噪比
-        cout <<"sinr: " << sinr_ << endl;
+        SpectrumValue sinr_ = rxSignal/interference;
+        // cout <<"sinr: " << sinr_ << endl;
         sinr.insert(pair<uint32_t, SpectrumValue>(ueDevs.Get(k)->GetObject<LteUeNetDevice> ()->GetRrc()->GetRnti(), sinr_));
       }
 
@@ -756,11 +713,14 @@ void rlcandsinr()//在每个tti的最后执行，用以获取rlc层本时刻待�
     rewardParameters.back()[k].sinr = sinr;
   }
 }
+/*
+ns3中的类似gym中的step函数
+ */
 void
 ScheduleNextStateRead (double envStepTime, Ptr<OpenGymInterface> openGym)
 {
   
-  Simulator::Schedule (NanoSeconds (999999), &rlcandsinr);
+  Simulator::Schedule (NanoSeconds (999999), &rlcandsinr);//通过Schedule事件调度机制在每个tti结束时获取sinr和rlcbuffer
   Simulator::Schedule (Seconds (envStepTime), &ScheduleNextStateRead, envStepTime, openGym);
   openGym->NotifyCurrentState ();
 }
@@ -978,9 +938,14 @@ main (int argc, char *argv[])
               lteHelper->ActivateDedicatedEpsBearer (ueDevs.Get (u), EpsBearer(EpsBearer::GBR_GAMING), tft);
             }
 
+          // Time startTime = Seconds (startTimeSeconds->GetValue ());
+          // Time stopTime = Seconds (stopTimeSeconds->GetValue ());
+ 
+        
+          // cout << "===" << u << endl;
           
         }
-
+        // cout << serverApps.GetN() << endl;
          Time startTime = Seconds (startTimeSeconds->GetValue ());
           Time stopTime = Seconds (stopTimeSeconds->GetValue ());
           cout << startTime << endl;
@@ -1007,11 +972,13 @@ main (int argc, char *argv[])
 
     }
     monitor = flowmon.Install(ueNodes);
-
+  // monitor = flowmon.Install(enbNodes);
+  // monitor = flowmon.Install(remoteHostContainer);
+  // monitor = flowmon.Install(pgw);
   
   flowmon.InstallAll ();
   lteHelper->EnableTraces ();
-
+  //lteHelper->EnableMacTraces();
 
   // OpenGym Env
   Ptr<OpenGymInterface> openGym = CreateObject<OpenGymInterface> (openGymPort);
