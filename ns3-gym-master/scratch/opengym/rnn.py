@@ -6,6 +6,8 @@ import numpy as np
 from tensorflow.python.framework import ops
 # tf.reset_default_graph()
 # import tensorflow.contrib.keras as kr
+nOfenb = 19
+nOfchannel = 12
 class TRNNConfig(object):
     """RNN配置参数"""
 
@@ -121,7 +123,7 @@ class ResourceAllocationRNN(object):
         """
             Choose action based on observation
         """
-        action = np.zeros([7, 12])
+        action = np.zeros([nOfenb, nOfchannel])
         self.sess = tf.Session()
         self.sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
         channel_of_user = self.sess.run(self.y_pred_cls, feed_dict={self.input_x: observation_step, self.keep_prob: 0.3})                         # channel_of_user表示所有用户经rnn网络选择的信道 （1*84维的向量）
@@ -148,8 +150,8 @@ class ResourceAllocationRNN(object):
         """
             Choose action based on observation
         """
-        action = np.zeros([7, 12])
-        tj = np.zeros([7, 12])
+        action = np.zeros([nOfenb, nOfchannel])
+        tj = np.zeros([nOfenb, nOfchannel])
         self.sess = tf.Session()
         self.sess.run((tf.global_variables_initializer(), tf.local_variables_initializer()))
         channel_of_user = self.sess.run(self.y_pred_cls, feed_dict={self.input_x: observation_step, self.keep_prob: 0.3})                         # channel_of_user表示所有用户经rnn网络选择的信道 （1*84维的向量）

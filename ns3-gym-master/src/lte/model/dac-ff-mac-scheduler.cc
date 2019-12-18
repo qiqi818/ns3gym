@@ -958,8 +958,6 @@ DacFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sche
       if ((ret.m_buildDataList.size () > 0) || (ret.m_buildRarList.size () > 0))
         {
           m_schedSapUser->SchedDlConfigInd (ret);
-          m_ret_p2 = m_ret_p;
-          m_ret_p = m_ret;
           m_ret = ret;
         }
       return;
@@ -1248,8 +1246,6 @@ DacFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sche
     }
 
   m_schedSapUser->SchedDlConfigInd (ret);
-  m_ret_p2 = m_ret_p;
-  m_ret_p = m_ret;
   m_ret = ret;
 
 

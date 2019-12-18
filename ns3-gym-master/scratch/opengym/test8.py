@@ -51,6 +51,8 @@ if __name__ == "__main__":
 env = ns3env.Ns3Env(port=port, stepTime=stepTime, startSim=startSim, simSeed=seed, simArgs=simArgs, debug=debug)
 env.reset()
 
+nOfenb = 19
+nOfchannel = 12
 ob_space = env.observation_space
 ac_space = env.action_space
 ax = []
@@ -83,38 +85,15 @@ try:
             observation_step = [observation] 
             
             
-            # 将状态输入RNN选取动作  
-            # if stepIdx < 1:
-            #     action_step = RNN.choose_action(observation_step)
-            # print(observation_step)
-            # if stepIdx < 500:
-            #     tj = np.zeros([7, 12])
-            #     action_step = np.zeros([7, 12])
-            #     for q in range(7):
-            #         id = 0
-            #         for p in range(len(observation_step[0])):
-            #             if observation_step[0][p][0] == q and observation_step[0][p][1] > 0:
-            #                 action_step[q][id] = observation_step[0][p][1]
-            #                 tj[q][id]+=1
-            #                 id += 1
-            #                 if id == 12:
-            #                     break
-               
-            # else:
+        
             action_step,tj = RNN.choose_action2(observation_step)
             print(action_step)
             print(tj)
-            # r = 0
-            # for i in range(7):
-            #     for j in range(12):
-            #         if tj[i][j] == 1:
-            #             r += 100
-            #         if tj[i][j] > 1:
-            #             r -= ((tj[i][j]-1) * 10)
+            
             action_list = []
             #将动作以[CellId1,RNTI1,资源编号1,CellId2,RNTI2,资源编号2,……]的形式保存在action_list中
-            for x in range(7):
-                for y in range(12):
+            for x in range(nOfenb):
+                for y in range(nOfchannel):
                     if action_step[x][y] > 0:
                         action_list.append(x)                       #CellId
                         action_list.append(int(action_step[x][y]))  #RNTI
@@ -132,11 +111,15 @@ try:
             #step函数，将动作action_传给ns3中执行下去，并获得ns3中的反馈
             obs, reward_step, done, info = env.step(action_)
             # reward_step  = r
-            ay.append(reward_step)
+            if stepIdx > 50:
+                ay.append(reward_step)
+            else:
+                ay.append(0)
             print("---reward: ", reward_step)
             print("-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-")
             #将每一步的状态、动作、奖励存储，以备进行学习
-            s, a, r = RNN.store_transition(observation_step, action_step, reward_step)
+            if stepIdx > 50:
+                s, a, r = RNN.store_transition(observation_step, action_step, reward_step)
 
             plt.clf()              # 清除之前画的图
             plt.plot(ax,ay)        # 画出当前 ax 列表和 ay 列表中的值的图形
@@ -146,7 +129,7 @@ try:
             plt.ioff()             # 关闭画图的窗口
             
             #每经历10个step，网络进行一次学习
-            if  stepIdx > 0 and (stepIdx+1)%10 == 0:
+            if  stepIdx > 50 and (stepIdx+1)%10 == 0:
                 discounted_episode_rewards_norm = RNN.learn()
 
 
