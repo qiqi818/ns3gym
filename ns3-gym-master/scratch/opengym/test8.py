@@ -51,12 +51,12 @@ if __name__ == "__main__":
 env = ns3env.Ns3Env(port=port, stepTime=stepTime, startSim=startSim, simSeed=seed, simArgs=simArgs, debug=debug)
 env.reset()
 
-nOfenb = 19
-nOfchannel = 12
+nOfenb = 19     #基站数
+nOfchannel = 12`#资源块数
 ob_space = env.observation_space
 ac_space = env.action_space
-ax = []
-ay = []
+ax = []         #存储画图数据step
+ay = []         #存储画图数据reward
 stepIdx = -1
 currIt = 0
 plt.ion()
@@ -74,12 +74,11 @@ try:
             ax.append(stepIdx) 
             # ---------------------------------------------------------------------------------------
             observation = []#环境的观测值，状态observation
-            #状态是最长为84的[CellId,RNTI]组合，不足84则补零
+            #状态
             if len(obs)<4800:
                 for kk in range(4800 - len(obs)):
                     obs.append(0)
             for j in range(1200):
-                #状态是最长为84的[CellId,RNTI]组合
                 observation.append([obs[4*j],obs[4*j+1],obs[4*j+2],obs[4*j+3]])
 
             observation_step = [observation] 
