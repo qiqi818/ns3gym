@@ -93,8 +93,9 @@ list< vector< struct rParameters > > rewardParameters;
 
 
 int num_ue_ = 0;
-uint16_t numberOfenb = 19;//enb数目
-uint16_t numberOfRandomUes = 100;//ue数量
+uint16_t numberOfenb = 2;//enb数目
+uint16_t numberOfRandomUes = 2;//ue数量
+uint16_t numOfrbg = 12;
 Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
 Ptr<PointToPointEpcHelper> epcHelper = CreateObject<PointToPointEpcHelper> ();
 FlowMonitorHelper flowmon;
@@ -233,7 +234,7 @@ Ptr<OpenGymSpace>
 MyGetActionSpace (void)
 {
   Ptr<OpenGymTupleSpace> space = CreateObject<OpenGymTupleSpace> ();
-  for (int i = 0; i < 1200; i++)
+  for (uint16_t i = 0; i < enbDevs.GetN()*numOfrbg; i++)
     space->Add (CreateObject<OpenGymDiscreteSpace> (1));
 
   return space;
@@ -348,7 +349,7 @@ MyGetObservation (void)
       ls.sort (); //依等待传输的数据量排序
     }
   uint16_t num_ue = 0; //统计总的业务请求数
-  for (list<list<int>>::iterator it = ls.begin (); it != ls.end () && num_ue < 1200; it++)
+  for (list<list<int>>::iterator it = ls.begin (); it != ls.end () && num_ue < enbDevs.GetN()*numOfrbg; it++)
     {
       for (list<int>::iterator iz = it->begin (); iz != it->end (); iz++)
         {
@@ -362,9 +363,9 @@ MyGetObservation (void)
   num_ue_ = num_ue;
 
   //进行补0
-  if (ls.size () <= 1200)
+  if (ls.size () <= enbDevs.GetN()*numOfrbg)
     {
-      for (uint16_t i = 0; i < 1200 - ls.size (); i++)
+      for (uint16_t i = 0; i < enbDevs.GetN()*numOfrbg - ls.size (); i++)
         {
           box->AddValue (0);
           box->AddValue (0);
@@ -557,22 +558,23 @@ MyGetReward (void)
 
   //用收集的参数计算奖励----------------
   double reward = 0.0;
-  // vector< struct rParameters > rps0;
-  // vector< struct rParameters > rps1;
-  // vector< struct rParameters > rps2;
-  // vector< struct rParameters > rps3;
-  // double reward1 = 0.0; //delay
-  // double reward2 = 0.0; //吞吐率
-  // double reward3 = 0.0; //负奖励
-  // double reward4 = 0.0;
+  vector< struct rParameters > rps0;
+  vector< struct rParameters > rps1;
+  vector< struct rParameters > rps2;
+  vector< struct rParameters > rps3;
+  double reward1 = 0.0; //delay
+  double reward2 = 0.0; //信干噪比
+  double reward3 = 0.0; //负奖励
+  double reward4 = 0.0; //吞吐率
   // double unum = 0;
-  
-  // if(rewardParameters.size() == 4)
-  // {
-  //   rps0 = *(rewardParameters.begin());//T
-  //   rps1 = *(++rewardParameters.begin());//T+1
-  //   rps2 = *(++(++rewardParameters.begin()));//T+2
-  //   rps3 = rewardParameters.back();//T+3
+  // double sum = 0.0;
+  // double count = 0.0;
+  if(rewardParameters.size() == 4)
+  {
+    rps0 = *(rewardParameters.begin());//T
+    rps1 = *(++rewardParameters.begin());//T+1
+    rps2 = *(++(++rewardParameters.begin()));//T+2
+    rps3 = rewardParameters.back();//T+3
     
 
 
@@ -581,92 +583,106 @@ MyGetReward (void)
 
 
 
-  //   double tx_right = 0;
-  //   double tx_total = 0;
+    double tx_right = 0;//正确传输量
+    double tx_total = 0;//全部待传量
+    double tx = 0.0;//全部传输量（包含错传）
 
-  //   for(uint32_t i = 0 ; i < enbDevs.GetN(); i++)
-  //   {
-  //     map<uint32_t, ns3::FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it;
-  //     for(it = rps1[i].rlcbuffer.begin(); it != rps1[i].rlcbuffer.end(); it++)
-  //     {
-  //       if(rps1[i].uestates.find(it->first) != rps1[i].uestates.end())
-  //       {
-  //         uint32_t qci = rps1[i].uestates.find(it->first)->second[1];
-  //         reward1 += 1.0 - (double)it->second.m_rlcTransmissionQueueHolDelay/delat_buget[qci-1];
-  //         unum += 1;
-  //       }
-  //     }
+    for(uint32_t i = 0 ; i < enbDevs.GetN(); i++)
+    {
+      // map<uint32_t, ns3::FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it;
+      // for(it = rps1[i].rlcbuffer.begin(); it != rps1[i].rlcbuffer.end(); it++)
+      // {
+      //   if(rps1[i].uestates.find(it->first) != rps1[i].uestates.end())
+      //   {
+      //     uint32_t qci = rps1[i].uestates.find(it->first)->second[1];
+      //     reward1 += 1.0 - (double)it->second.m_rlcTransmissionQueueHolDelay/delat_buget[qci-1];
+      //     unum += 1;
+      //   }
+      // }
 
 
-  //     map<uint32_t, vector<double>>::iterator it1;
-  //     for(it1 = rps2[i].phyrxstates.begin();it1 != rps2[i].phyrxstates.end(); it1++)
-  //     {
-  //       reward2 += it1->second[5]/(it1->second[4] + (double)rps0[i].rlcbuffer.find(it1->first)->second.m_rlcTransmissionQueueSize); //已传（传对）/(已传（全部）+待传)
-  //     }
-       
-       
-       
-       
-  //     map<uint32_t, ns3::FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it2;
-  //     for(it2 = rps0[i].rlcbuffer.begin(); it2 != rps0[i].rlcbuffer.end(); it2++)
-  //     {
+      // map<uint32_t, ns3::SpectrumValue>::iterator it1;
+      // for(it1 = rps2[i].sinr.begin();it1 != rps2[i].sinr.end(); it1++)
+      // {
         
-  //       if(rps1[i].peruerbbitmap.find(it2->first) == rps1[i].peruerbbitmap.end() && (it2->second.m_rlcTransmissionQueueSize > 0 || it2->second.m_rlcRetransmissionQueueSize > 0))
-  //       {
+      //   for(uint32_t i = 0 ; i < 25; i++)
+      //   {
+      //     if(it1->second[i] > 0)
+      //     {
+      //       sum += it1->second[i];
+      //       count += 1;
+      //     }
+      //   }
+        
+      // }
+      
+       
+       
+       
+      // map<uint32_t, ns3::FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it2;
+      // for(it2 = rps0[i].rlcbuffer.begin(); it2 != rps0[i].rlcbuffer.end(); it2++)
+      // {
+        
+      //   if(rps1[i].peruerbbitmap.find(it2->first) == rps1[i].peruerbbitmap.end() && (it2->second.m_rlcTransmissionQueueSize > 0 || it2->second.m_rlcRetransmissionQueueSize > 0))
+      //   {
          
-  //         uint32_t cqi = rps0[i].uestates.find(it2->first)->second[0];
-  //         reward3 -= (double)cqi/15;
-  //       }
-  //     }
+      //     uint32_t cqi = rps0[i].uestates.find(it2->first)->second[0];
+      //     reward3 -= (double)cqi/15;
+      //   }
+      // }
 
-  //     map<uint32_t, ns3::FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it3;
+      map<uint32_t, ns3::FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it3;
 
-  //     for(it3 = rps0[i].rlcbuffer.begin(); it3 != rps0[i].rlcbuffer.end(); it3++)
-  //     {
+      for(it3 = rps0[i].rlcbuffer.begin(); it3 != rps0[i].rlcbuffer.end(); it3++)
+      {
 
-  //       tx_total += it3->second.m_rlcTransmissionQueueSize;
+        tx_total += it3->second.m_rlcTransmissionQueueSize;
 
-  //       // if(rps0[i].peruerbbitmap.find(it3->first) == rps0[i].peruerbbitmap.end() || rps2[i].phyrxstates.find(it3->first) == rps2[i].phyrxstates.end())
-  //       //   continue;
-  //       if(rps2[i].phyrxstates.find(it3->first) != rps2[i].phyrxstates.end())
-  //       {
-  //         if((uint32_t)rps2[i].phyrxstates.find(it3->first)->second[6] == 1 && (int64_t)rps2[i].phyrxstates.find(it3->first)->second[1] == Simulator::Now().GetMilliSeconds()-1)
-  //         {
+        if(rps2[i].phyrxstates.find(it3->first) != rps2[i].phyrxstates.end())
+        {
+          if((uint32_t)rps2[i].phyrxstates.find(it3->first)->second[6] == 1 && (int64_t)rps2[i].phyrxstates.find(it3->first)->second[1] == Simulator::Now().GetMilliSeconds()-1)
+          {
 
-  //           tx_right += (rps0[i].rlcrxstate.find(it3->first)->second);
+            tx_right += (rps0[i].rlcrxstate.find(it3->first)->second);
             
-  //         }
-  //       }
+          }
+          if((int64_t)rps2[i].phyrxstates.find(it3->first)->second[1] == Simulator::Now().GetMilliSeconds()-1)
+          {
 
-  //     }
+            tx += (rps0[i].rlcrxstate.find(it3->first)->second);
+            
+          }
+          
+        }
 
-  //   }
-  //   if(tx_total > 0)
-  //   {
-  //     if(tx_right > 10000000)
-  //       tx_right = 0;
-  //     reward4 = tx_right/tx_total;
-  //     cout << "tx_right: " << tx_right << endl;
-  //     cout << "tx_total: " << tx_total << endl; 
-  //   }
+      }
+
+    }
+    // if(count > 0)
+    //     reward2 += sum/count;
+    if(tx_total > 0)
+    {
+      reward4 = tx_right/tx_total;
+      cout << "tx_right: " << tx_right << endl;
+      cout << "tx_total: " << tx_total << endl; 
+    }  
+    else
+    {
+      reward4 = 0;
+    }
       
-  //   else
-  //   {
-  //     reward4 = 0;
-  //   }
-      
-  //   rewardParameters.erase(rewardParameters.begin());
-  // }
-  
-  // cout << "reward1: " << reward1 << endl;
-  // cout << "reward2: " << reward2 << endl;
-  // cout << "reward3: " << reward3 << endl;
-  // cout << "reward4: " << reward4 << endl;
-  // if(unum > 0)
-  //   reward = 0.2*reward1/unum+0.6*reward4+0.2*reward3/unum;
-  // else
-  //   reward = 0.2*reward1+0.6*reward4+0.2*reward3;
-  // return reward;
+    rewardParameters.erase(rewardParameters.begin());
+  }
+  cout << "reward: " << reward << endl;
+  cout << "reward1: " << reward1 << endl;
+  cout << "reward2: " << reward2 << endl;
+  cout << "reward3: " << reward3 << endl;
+  cout << "reward4: " << reward4 << endl;
+
+  reward = reward2;
+
+
+  return reward4-0.5;//加一个baseline 使吞吐率低于0.5为负奖励
   
 }
 
@@ -716,14 +732,14 @@ void sinr()
       uint32_t cellid = ueDevs.Get(i)->GetObject<LteUeNetDevice> ()->GetRrc()->GetCellId();
       if(interf-> m_interferenceData->m_receiving && (Simulator::Now () > interf-> m_interferenceData-> m_lastChangeTime) && cellid == k+1)
       {
-        // cout << cellid << endl;
-        // cout << rnti << endl;
+        cout << cellid << endl;
+        cout << rnti << endl;
         SpectrumValue allSignals = *(interf-> m_interferenceData->m_allSignals);
         SpectrumValue rxSignal = *(interf-> m_interferenceData->m_rxSignal);
         SpectrumValue noise = *(interf-> m_interferenceData->m_noise);
         SpectrumValue interference = allSignals-rxSignal+noise;
         SpectrumValue sinr_ = rxSignal/interference;
-        // cout <<"sinr: " << sinr_ << endl;
+        cout <<"sinr: " << sinr_ << endl;
         sinr.insert(pair<uint32_t, SpectrumValue>(ueDevs.Get(i)->GetObject<LteUeNetDevice> ()->GetRrc()->GetRnti(), sinr_));
       }
 
@@ -748,7 +764,7 @@ main (int argc, char *argv[])
 {
   // Parameters of the scenario
   uint32_t simSeed = 15;
-  double simulationTime = 10; //seconds
+  double simulationTime = 30; //seconds
   double envStepTime = 0.001; //seconds, ns3gym env step time interval
   uint32_t openGymPort = 5555;
   uint32_t testArg = 0;
@@ -813,28 +829,12 @@ main (int argc, char *argv[])
 
   Ptr<ListPositionAllocator> enbPositionAlloc = CreateObject<ListPositionAllocator> ();
   
-  //19个基站的位置
-  enbPositionAlloc->Add (Vector (0.0, 0.0, high)); // eNB1 (0,0,0)
+  //基站的位置
 
-  enbPositionAlloc->Add (Vector (-sqrt(3) / 2.0 * radius, 1.5 * radius, high)); // eNB2
-  enbPositionAlloc->Add (Vector (sqrt(3) / 2.0 * radius, 1.5 * radius, high)); // eNB3
-  enbPositionAlloc->Add (Vector (sqrt(3) * radius, 0.0, high)); //eNB4
-  enbPositionAlloc->Add (Vector (sqrt(3) / 2.0 * radius, -1.5 * radius, high)); //eNB5
-  enbPositionAlloc->Add (Vector (-sqrt(3) / 2.0 * radius, -1.5 * radius, high)); //eNB6
-  enbPositionAlloc->Add (Vector (-sqrt(3) * radius, 0.0, high)); //eNB7
+  enbPositionAlloc->Add (Vector (sqrt(3) * radius/2, 0.0, high)); //eNB4
 
-  enbPositionAlloc->Add (Vector (-3 * sqrt(3) / 2.0 * radius, 1.5 * radius,high)); //eNB8
-  enbPositionAlloc->Add (Vector (-sqrt(3) * radius, 3.0 * radius, high)); //eNB9
-  enbPositionAlloc->Add (Vector (0.0, 3.0 * radius, high)); //eNB10
-  enbPositionAlloc->Add (Vector (sqrt(3) * radius, 3.0 * radius, high)); //eNB11
-  enbPositionAlloc->Add (Vector (3 * sqrt(3) / 2.0 * radius, 1.5 * radius,high)); //eNB12
-  enbPositionAlloc->Add (Vector (2 * sqrt(3) * radius, 0.0, high)); //eNB13
-  enbPositionAlloc->Add (Vector (3 * sqrt(3) / 2.0 * radius, -1.5 * radius,high)); //eNB14
-  enbPositionAlloc->Add (Vector (sqrt(3) * radius, -3.0 * radius, high)); //eNB15
-  enbPositionAlloc->Add (Vector (0.0, -3.0 * radius, high)); //eNB16
-  enbPositionAlloc->Add (Vector (-sqrt(3) * radius, -3.0 * radius, high)); //eNB17
-  enbPositionAlloc->Add (Vector (-3 * sqrt(3) / 2.0 * radius, -1.5 * radius, high)); //eNB18
-  enbPositionAlloc->Add (Vector (-2 * sqrt(3) * radius, 0.0, high)); //eNB19
+  enbPositionAlloc->Add (Vector (-sqrt(3) * radius/2, 0.0, high)); //eNB7
+
 
 
 
@@ -844,22 +844,21 @@ main (int argc, char *argv[])
   mobility.SetPositionAllocator (enbPositionAlloc);
   mobility.Install (enbNodes);
 
-  Ptr<RandomBoxPositionAllocator> randomUePositionAlloc =
-      CreateObject<RandomBoxPositionAllocator> ();
-  Ptr<UniformRandomVariable> xVal = CreateObject<UniformRandomVariable> ();
-  xVal->SetAttribute ("Min", DoubleValue (-(2*sqrt(3)+1)*radius));
-  xVal->SetAttribute ("Max", DoubleValue ((2*sqrt(3)+1)*radius));
-  randomUePositionAlloc->SetAttribute ("X", PointerValue (xVal));
-  Ptr<UniformRandomVariable> yVal = CreateObject<UniformRandomVariable> ();
-  yVal->SetAttribute ("Min", DoubleValue (-(2*sqrt(3)+1)*radius));
-  yVal->SetAttribute ("Max", DoubleValue ((2*sqrt(3)+1)*radius));
-  randomUePositionAlloc->SetAttribute ("Y", PointerValue (yVal));
-  Ptr<UniformRandomVariable> zVal = CreateObject<UniformRandomVariable> ();
-  zVal->SetAttribute ("Min", DoubleValue (0));
-  zVal->SetAttribute ("Max", DoubleValue (1));
-  randomUePositionAlloc->SetAttribute ("Z", PointerValue (zVal));
-  mobility.SetPositionAllocator (randomUePositionAlloc);
+
+  Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
+  
+  //ue的位置
+  uePositionAlloc->Add (Vector (-4000, 0, 0)); //
+
+
+  uePositionAlloc->Add (Vector (4000, 0, 0)); //
+
+
+  // MobilityHelper mobility;
+  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+  mobility.SetPositionAllocator (uePositionAlloc);
   mobility.Install (ueNodes);
+
 
 
   enbDevs = lteHelper->InstallEnbDevice (enbNodes);
@@ -889,8 +888,8 @@ main (int argc, char *argv[])
   startTimeSeconds->SetAttribute ("Min", DoubleValue (0));
   startTimeSeconds->SetAttribute ("Max", DoubleValue (0.1));
   Ptr<UniformRandomVariable> stopTimeSeconds = CreateObject<UniformRandomVariable> ();
-  stopTimeSeconds->SetAttribute ("Min", DoubleValue (20));
-  stopTimeSeconds->SetAttribute ("Max", DoubleValue (50));
+  stopTimeSeconds->SetAttribute ("Min", DoubleValue (100));
+  stopTimeSeconds->SetAttribute ("Max", DoubleValue (101));
 
   ApplicationContainer clientApps;
   ApplicationContainer serverApps;
@@ -917,10 +916,10 @@ main (int argc, char *argv[])
           OnOffHelper dlClientHelper ("ns3::UdpSocketFactory",
                                                InetSocketAddress (ueIpIfaces.GetAddress (u), dlPort));
           cout << "ue-" << u <<  ": " << ueIpIfaces.GetAddress (u) << endl;
-          dlClientHelper.SetAttribute("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=0.9]"));   
-          dlClientHelper.SetAttribute("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0.1]"));
+          dlClientHelper.SetAttribute("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=900]"));   
+          dlClientHelper.SetAttribute("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
           dlClientHelper.SetAttribute("PacketSize", UintegerValue (256));
-          dlClientHelper.SetAttribute("DataRate", DataRateValue (DataRate ("300kb/s")));
+          dlClientHelper.SetAttribute("DataRate", DataRateValue (DataRate ("2048kb/s")));
           dlClientHelper.SetAttribute("MaxBytes", UintegerValue (1024000));
           // dlClientHelper.SetAttribute ("MaxPackets", UintegerValue (100));
           // dlClientHelper.SetAttribute ("Interval", TimeValue (MilliSeconds (20.0)));
@@ -936,7 +935,7 @@ main (int argc, char *argv[])
           OnOffHelper ulClientHelper ("ns3::UdpSocketFactory",
                                                InetSocketAddress (remoteHostAddr, ulPort));
           ulClientHelper.SetAttribute("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=0.9]"));   
-          ulClientHelper.SetAttribute("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0.1]"));
+          ulClientHelper.SetAttribute("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0.01]"));
           
 
 
@@ -961,41 +960,41 @@ main (int argc, char *argv[])
           ulpf.remotePortEnd = ulPort;
           tft->Add (ulpf);
           
-          if (u % 2 == 0)
-            {
+          // if (u % 2 == 0)
+          //   {
               enum EpsBearer::Qci q = EpsBearer::GBR_GAMING;
               EpsBearer bearer (q);
              
               lteHelper->ActivateDedicatedEpsBearer (ueDevs.Get (u), EpsBearer(EpsBearer:: GBR_CONV_VOICE ), tft);
-            }
-          else
-            {
-              lteHelper->ActivateDedicatedEpsBearer (ueDevs.Get (u), EpsBearer(EpsBearer::GBR_GAMING), tft);
-            }
+          //   }
+          // else
+          //   {
+          //     lteHelper->ActivateDedicatedEpsBearer (ueDevs.Get (u), EpsBearer(EpsBearer::GBR_GAMING), tft);
+          //   }
 
           
         }
          Time startTime = Seconds (startTimeSeconds->GetValue ());
           Time stopTime = Seconds (stopTimeSeconds->GetValue ());
           cout << startTime << endl;
-          serverApps.Get(2*u)->SetStartTime(startTime);
-          serverApps.Get(2*u+1)->SetStartTime(startTime);
-          clientApps.Get(2*u)->SetStartTime (startTime);
-          clientApps.Get(2*u+1)->SetStartTime (startTime);
+          // serverApps.Get(2*u)->SetStartTime(startTime);
+          // serverApps.Get(2*u+1)->SetStartTime(startTime);
+          // clientApps.Get(2*u)->SetStartTime (startTime);
+          // clientApps.Get(2*u+1)->SetStartTime (startTime);
 
-          serverApps.Get(2*u)->SetStopTime (startTime+stopTime );
-          serverApps.Get(2*u+1)->SetStopTime (startTime+stopTime );
-          clientApps.Get(2*u)->SetStopTime (startTime+stopTime );
-          clientApps.Get(2*u+1)->SetStopTime (startTime+stopTime );
-          // serverApps.Get(2*u)->SetStartTime(Seconds(0.001));
-          // serverApps.Get(2*u+1)->SetStartTime(Seconds(0.001));
-          // clientApps.Get(2*u)->SetStartTime (Seconds(0.001));
-          // clientApps.Get(2*u+1)->SetStartTime (Seconds(0.001));
+          // serverApps.Get(2*u)->SetStopTime (startTime+stopTime );
+          // serverApps.Get(2*u+1)->SetStopTime (startTime+stopTime );
+          // clientApps.Get(2*u)->SetStopTime (startTime+stopTime );
+          // clientApps.Get(2*u+1)->SetStopTime (startTime+stopTime );
+          serverApps.Get(2*u)->SetStartTime(Seconds(0.001));
+          serverApps.Get(2*u+1)->SetStartTime(Seconds(0.001));
+          clientApps.Get(2*u)->SetStartTime (Seconds(0.001));
+          clientApps.Get(2*u+1)->SetStartTime (Seconds(0.001));
 
-          // serverApps.Get(2*u)->SetStopTime (Seconds(0.001)+stopTime );
-          // serverApps.Get(2*u+1)->SetStopTime (Seconds(0.001)+stopTime );
-          // clientApps.Get(2*u)->SetStopTime (Seconds(0.001)+stopTime );
-          // clientApps.Get(2*u+1)->SetStopTime (Seconds(0.001)+stopTime );
+          serverApps.Get(2*u)->SetStopTime (Seconds(0.001)+stopTime );
+          serverApps.Get(2*u+1)->SetStopTime (Seconds(0.001)+stopTime );
+          clientApps.Get(2*u)->SetStopTime (Seconds(0.001)+stopTime );
+          clientApps.Get(2*u+1)->SetStopTime (Seconds(0.001)+stopTime );
           
           
 

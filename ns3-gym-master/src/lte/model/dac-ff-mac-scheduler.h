@@ -156,6 +156,8 @@ public:
 
 
   FfMacSchedSapUser::SchedDlConfigIndParameters m_ret;
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret_p;
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret_p2;
   Ptr<LteAmc> m_amc; ///< AMC
 private:
   //
