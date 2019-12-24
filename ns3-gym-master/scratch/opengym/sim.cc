@@ -91,7 +91,7 @@ float stepCounter = -1; //step计数
 
 list< vector< struct rParameters > > rewardParameters;
 
-
+uint8_t bandwidth = 25;
 int num_ue_ = 0;
 uint16_t numberOfenb = 2;//enb数目
 uint16_t numberOfRandomUes = 2;//ue数量
@@ -234,7 +234,7 @@ Ptr<OpenGymSpace>
 MyGetActionSpace (void)
 {
   Ptr<OpenGymTupleSpace> space = CreateObject<OpenGymTupleSpace> ();
-  for (uint16_t i = 0; i < enbDevs.GetN()*numOfrbg; i++)
+  for (uint16_t i = 0; i < ueDevs.GetN()*numOfrbg; i++)
     space->Add (CreateObject<OpenGymDiscreteSpace> (1));
 
   return space;
@@ -263,8 +263,11 @@ MyGetObservation (void)
 {
 
   stepCounter += 1;
+  cout << "----------------------以上为step: " << stepCounter-1 << "时刻----------------------" << endl;
+  cout << endl;
+  cout << "----------------------以下为step: " << stepCounter << "时刻----------------------" << endl;
   cout << "step: " << stepCounter << endl;
-  uint32_t nodeNum = numberOfenb;
+  uint32_t nodeNum = 1000;
   std::vector<uint32_t> shape = {
       nodeNum,
   };
@@ -272,6 +275,8 @@ MyGetObservation (void)
       shape); //创建OpenGymBoxContainer用以包装存储observation，进而传递给gym
 
   list<list<int>> ls;
+  cout << endl;
+  cout << "(" << stepCounter << "时刻)调度前的rlcbuffer:" << endl;
   for (uint16_t i = 0; i < enbDevs.GetN(); i++)
     {
       PointerValue ptr;
@@ -287,8 +292,8 @@ MyGetObservation (void)
         {
           ns3::EpsBearer::Qci qci;
 
-          cout << i+1 << "-" << it->first.m_rnti  << ":"<< (uint16_t)(it->first.m_lcId) <<  endl;
-          cout << "时延tx:---" << it->second.m_rlcTransmissionQueueHolDelay << "时延retx:---" << it->second.m_rlcRetransmissionHolDelay<< " tx:" << it->second.m_rlcTransmissionQueueSize << " retx:" << it->second.m_rlcRetransmissionQueueSize << endl;
+          cout << i+1 << "-" << it->first.m_rnti  <<  endl;
+          cout << "---时延:" << it->second.m_rlcTransmissionQueueHolDelay << " ---tx:" << it->second.m_rlcTransmissionQueueSize  << endl;
           if(enbRrc->HasUeManager(it->first.m_rnti))
         {
           std::map <uint8_t, Ptr<LteDataRadioBearerInfo> >::iterator pdrb = enbRrc->GetUeManager(it->first.m_rnti)->m_drbMap.begin();
@@ -377,7 +382,7 @@ MyGetObservation (void)
     {
     }
 
-
+  // cout << "box: " << box << endl;
   return box;
 }
 
@@ -432,9 +437,11 @@ MyExecuteActions (Ptr<OpenGymDataContainer> action)
           ac_s[DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i))->GetValue ()] += " ";
         }
     }
-
-  NS_LOG_UNCOND ("Action: \n" << tu_ac);
+  cout << endl;
+  NS_LOG_UNCOND ("(" << stepCounter << "时刻)Action: \n" << tu_ac);
   //以字符串的形式将动作传递到各个波束（eNB）进行调度
+  cout << endl;
+  cout << "(" << stepCounter << "时刻)调度结果: " << endl;
   for (uint16_t i = 0; i < enbDevs.GetN(); i++)
     {
       
@@ -450,7 +457,6 @@ MyExecuteActions (Ptr<OpenGymDataContainer> action)
       ff->GetAttribute ("test", c);
       vector<string> vcs = split (c.Get ().c_str (), " ");
     }
-  cout << "-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+" << endl;
    
   return true;
 }
@@ -663,8 +669,9 @@ MyGetReward (void)
     if(tx_total > 0)
     {
       reward4 = tx_right/tx_total;
-      cout << "tx_right: " << tx_right << endl;
-      cout << "tx_total: " << tx_total << endl; 
+      cout << endl;
+      cout << "(" << stepCounter-3 << "时刻)tx_right: " << tx_right << endl;
+      cout << "(" << stepCounter-3 << "时刻)tx_total: " << tx_total << endl; 
     }  
     else
     {
@@ -673,11 +680,11 @@ MyGetReward (void)
       
     rewardParameters.erase(rewardParameters.begin());
   }
-  cout << "reward: " << reward << endl;
-  cout << "reward1: " << reward1 << endl;
-  cout << "reward2: " << reward2 << endl;
-  cout << "reward3: " << reward3 << endl;
-  cout << "reward4: " << reward4 << endl;
+  cout << "(" << stepCounter-3 << "时刻)reward: " << reward << endl;
+  cout << "(" << stepCounter-3 << "时刻)reward1: " << reward1 << endl;
+  cout << "(" << stepCounter-3 << "时刻)reward2: " << reward2 << endl;
+  cout << "(" << stepCounter-3 << "时刻)reward3: " << reward3 << endl;
+  cout << "(" << stepCounter-3 << "时刻)reward4: " << reward4 << endl;
 
   reward = reward2;
 
@@ -689,6 +696,8 @@ MyGetReward (void)
 //获取完成调度后的rlcbuffer信息
 void rlc()
 {
+  cout << endl;
+    cout << "(" << stepCounter << "时刻)调度后的rlcbuffer: " << endl;
     for (uint32_t i = 0; i < enbDevs.GetN(); i++)
     {
       PointerValue ptr;
@@ -704,8 +713,8 @@ void rlc()
            it != pff->m_rlcBufferReq.end (); it++)
         {
 
-          // cout << i+1 << "-" << it->first.m_rnti  << ":"<< (uint16_t)(it->first.m_lcId) <<  endl;
-          // cout << "时延tx:---" << it->second.m_rlcTransmissionQueueHolDelay << "时延retx:---" << it->second.m_rlcRetransmissionHolDelay<< " tx:" << it->second.m_rlcTransmissionQueueSize << " retx:" << it->second.m_rlcRetransmissionQueueSize << endl;
+          cout << i+1 << "-" << it->first.m_rnti  <<  endl;
+          cout << "---时延:" << it->second.m_rlcTransmissionQueueHolDelay << " ---tx:" << it->second.m_rlcTransmissionQueueSize  << endl;
           if(rewardParameters.back()[i].rlcbuffer.find(it->first.m_rnti) != rewardParameters.back()[i].rlcbuffer.end() && rewardParameters.back()[i].rlcbuffer.find(it->first.m_rnti)->second.m_rlcTransmissionQueueSize > 0)
           {
             double tx = (double)rewardParameters.back()[i].rlcbuffer.find(it->first.m_rnti)->second.m_rlcTransmissionQueueSize - it->second.m_rlcTransmissionQueueSize;
@@ -720,6 +729,8 @@ void rlc()
 //获取sinr
 void sinr()
 {
+  cout << endl;
+  cout <<"(" << stepCounter-2 << "时刻的)sinr: " << endl;
   //获取sinr
   for(uint32_t k = 0; k < enbDevs.GetN(); k++)
   {
@@ -732,14 +743,25 @@ void sinr()
       uint32_t cellid = ueDevs.Get(i)->GetObject<LteUeNetDevice> ()->GetRrc()->GetCellId();
       if(interf-> m_interferenceData->m_receiving && (Simulator::Now () > interf-> m_interferenceData-> m_lastChangeTime) && cellid == k+1)
       {
-        cout << cellid << endl;
-        cout << rnti << endl;
+        cout << "cellid: " << cellid << endl;
+        cout << "rnti: " << rnti << endl;
         SpectrumValue allSignals = *(interf-> m_interferenceData->m_allSignals);
         SpectrumValue rxSignal = *(interf-> m_interferenceData->m_rxSignal);
         SpectrumValue noise = *(interf-> m_interferenceData->m_noise);
         SpectrumValue interference = allSignals-rxSignal+noise;
         SpectrumValue sinr_ = rxSignal/interference;
-        cout <<"sinr: " << sinr_ << endl;
+        list<std::vector<rParameters>>::iterator it = ++rewardParameters.begin();
+        uint32_t bitmap = (*it)[k].peruerbbitmap.find(rnti)->second;
+        uint32_t mask = 1;
+        for(uint32_t x = 0; x < bandwidth/2; x++)
+        {
+          if(((mask<<x) & bitmap) == 0)
+          {
+            sinr_[2*x] = 0;
+            sinr_[2*x+1] = 0;
+          }
+        }
+        cout << "sinr: " << sinr_ << endl;
         sinr.insert(pair<uint32_t, SpectrumValue>(ueDevs.Get(i)->GetObject<LteUeNetDevice> ()->GetRrc()->GetRnti(), sinr_));
       }
 
@@ -778,7 +800,7 @@ main (int argc, char *argv[])
   //cmd.Parse (argc, argv);
   
 
-  uint8_t bandwidth = 25;
+  
   double radius = 5000.0;//基站小区半径
   double high = 1000;//基站高度
   cmd.AddValue ("numberOfRandomUes", "Number of UEs", numberOfRandomUes);
@@ -831,9 +853,13 @@ main (int argc, char *argv[])
   
   //基站的位置
 
-  enbPositionAlloc->Add (Vector (sqrt(3) * radius/2, 0.0, high)); //eNB4
+  enbPositionAlloc->Add (Vector (sqrt(3) * radius/2, 0.0, high)); //eNB1
 
-  enbPositionAlloc->Add (Vector (-sqrt(3) * radius/2, 0.0, high)); //eNB7
+  enbPositionAlloc->Add (Vector (-sqrt(3) * radius/2, 0.0, high)); //eNB2
+
+  // enbPositionAlloc->Add (Vector (0.0, sqrt(3) * radius/2, high)); //eNB1
+
+  // enbPositionAlloc->Add (Vector (0.0, -sqrt(3) * radius/2, high)); //eNB2
 
 
 
@@ -849,9 +875,17 @@ main (int argc, char *argv[])
   
   //ue的位置
   uePositionAlloc->Add (Vector (-4000, 0, 0)); //
+  // uePositionAlloc->Add (Vector (-4000, 0, 0)); //
 
 
   uePositionAlloc->Add (Vector (4000, 0, 0)); //
+  // uePositionAlloc->Add (Vector (4000, 0, 0)); //
+
+  //  uePositionAlloc->Add (Vector (0, -4000, 0)); //
+
+
+  // uePositionAlloc->Add (Vector (0, 4000, 0)); //
+  // uePositionAlloc->Add (Vector (500, 500, 0)); //
 
 
   // MobilityHelper mobility;
