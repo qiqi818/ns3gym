@@ -51,7 +51,7 @@ if __name__ == "__main__":
     load_path = None 
     save_path = None 
 
-    PG = PolicyGradient(n_x = 4+nOfenb*nOfchannel,n_y = nOfenb*nOfchannel,learning_rate=0.005,reward_decay=0.95,load_path=load_path,save_path=save_path,ep=0.99)
+    PG = PolicyGradient(n_x = 4+nOfenb*nOfchannel,n_y = nOfenb*nOfchannel,learning_rate=0.005,reward_decay=1,load_path=load_path,save_path=save_path,ep=0.99)
 
 env = ns3env.Ns3Env(port=port, startSim=startSim, simSeed=seed, simArgs=simArgs, debug=debug)
 
