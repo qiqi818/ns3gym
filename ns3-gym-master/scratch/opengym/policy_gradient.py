@@ -132,20 +132,21 @@ class PolicyGradient:
 #        print(prob_weights[0])
         for n in range(len(ii[0])):
             ii[0][n] = ii[0][n] + int(observation[0]*12)
-        prob_weights = prob_weights[0][ii]/sum(prob_weights[0][ii])
+        if sum(prob_weights[0][ii]) > 0:
+            prob_weights = prob_weights[0][ii]/sum(prob_weights[0][ii])
+        else:
+            prob_weights = prob_weights[0][ii]
         # Select action using a biased sample
         # this will return the index of the action we've sampled
         # try:
-        if nOfstep % 200 == 0:
-            self.ep = self.ep * 0.9
-        if random.random() <= self.ep:
+        
+        if random.random() <= self.ep and sum(prob_weights)>0:
             action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
         else:
             action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
         action = ii[0][action] - int(observation[0]*12)
-        # print("=====",observation[1][0])
+
         matrixOfChanAlloc[int(observation[0][0])][action] = observation[1][0]
-        # action = iii[int(action/env.numOfChannel)]*env.numOfChannel+int(action%env.numOfChannel)
 
         return action#资源编号
 
@@ -213,7 +214,7 @@ class PolicyGradient:
         s = []
         a = []
         r = []
-        for i in [len(reward_list)-3,len(reward_list)-1,1]:
+        for i in range(len(reward_list)-3,len(reward_list)-1,1):
             
             print(len(state_list))
             for j in range(len(state_list[i])):

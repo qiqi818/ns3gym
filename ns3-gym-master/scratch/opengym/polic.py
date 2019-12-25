@@ -82,6 +82,8 @@ try:
             matrixOfChanAlloc = np.zeros((nOfenb, nOfchannel))
             
             stepIdx += 1
+            if stepIdx % 100 == 0:
+                PG.ep = PG.ep * 0.7
             ax.append(stepIdx)
             print("stepIdx: ",stepIdx)
             # ax.append(stepIdx)
