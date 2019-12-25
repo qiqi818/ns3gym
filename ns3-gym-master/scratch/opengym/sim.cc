@@ -213,9 +213,7 @@ Define observation space
 Ptr<OpenGymSpace>
 MyGetObservationSpace (void)
 {
-  
   cout << "-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+" << endl;
-
   uint32_t nodeNum = 5;
   float low = 0.0;
   float high = 10.0;
@@ -250,10 +248,8 @@ Define game over condition
 bool
 MyGetGameOver (void)
 {
-
   bool isGameOver = false;
   NS_LOG_UNCOND ("GameOver: " << isGameOver);
-
   return isGameOver;
 }
 
