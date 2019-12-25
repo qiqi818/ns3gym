@@ -1,3 +1,4 @@
+#/home/liqi/.local/lib/python3.6/site-packages/ns3gym
 import os
 import sys
 import zmq
@@ -295,10 +296,14 @@ class Ns3ZmqBridge(object):
 
         spaceType = spaceDesc.__class__
 
+	
         if spaceType == spaces.Discrete:
             dataContainer.type = pb.Discrete
             discreteContainerPb = pb.DiscreteDataContainer()
-            discreteContainerPb.data = actions
+            if isinstance(actions,int):
+                discreteContainerPb.data = actions
+            else:
+                discreteContainerPb.data = actions.n
             dataContainer.data.Pack(discreteContainerPb)
 
         elif spaceType == spaces.Box:
