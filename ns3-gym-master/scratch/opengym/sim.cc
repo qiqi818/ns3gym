@@ -72,9 +72,8 @@
 using namespace ns3;
 using namespace std;
 vector<double> delat_buget = {100,150,50,300,100,300,100,300,300};
+
 float stepCounter = -1; //step计数
-
-
 
 struct rParameters {
   //map的key都为rnti
@@ -253,6 +252,25 @@ MyGetGameOver (void)
   return isGameOver;
 }
 
+void PrintRlcStat()
+{
+  cout << "eNB\tRNTI\tLCID\t时延tx\tTXLen\t时延retx\tReTxLen" << endl;
+  cout << "===============================================================" << endl;
+  for (uint16_t i = 0; i < enbDevs.GetN(); i++)
+  {
+    Ptr<DacFfMacScheduler> pff = GetSchedulerForEnb(i);
+    for (auto it = pff->m_rlcBufferReq.begin (); it != pff->m_rlcBufferReq.end (); it++)
+    {
+      uint16_t rnti = it->first.m_rnti;
+      uint8_t lcid = it->first.m_lcId;
+      FfMacSchedSapProvider::SchedDlRlcBufferReqParameters& rrp = it->second;
+
+      cout << (i + 1) << "\t" << rnti << "\t" << (uint16_t)lcid << "\t";
+      cout << rrp.m_rlcTransmissionQueueHolDelay << "\t" << rrp.m_rlcTransmissionQueueSize << "\t";
+      cout << rrp.m_rlcRetransmissionHolDelay << "\t" << rrp.m_rlcRetransmissionQueueSize << endl;
+    }
+  }
+}
 
 /*
 Collect observations
@@ -275,32 +293,34 @@ MyGetObservation(void)
   CreateObject<OpenGymBoxContainer<uint32_t>>(shape); //创建OpenGymBoxContainer用以包装存储observation，进而传递给gym
 
   list<list<int>> ls;
-  cout << "eNB\tRNTI\tLCID\t时延tx\t时延retx\tTXLen\tReTxLen" << endl;
+  cout << "eNB\tRNTI\tLCID\t时延tx\tTXLen\t时延retx\tReTxLen" << endl;
   cout << "===============================================================" << endl;
   for (uint16_t i = 0; i < enbDevs.GetN(); i++)
   {
     Ptr<LteEnbRrc> enbRrc = GetEnb(i)->GetRrc ();
     Ptr<DacFfMacScheduler> pff = GetSchedulerForEnb(i);
 
-    // for (std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator
-    //          it = pff->m_rlcBufferReq.begin ();
-    //      it != pff->m_rlcBufferReq.end (); it++)
+    // std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator
     for (auto it = pff->m_rlcBufferReq.begin (); it != pff->m_rlcBufferReq.end (); it++)
     {
-      ns3::EpsBearer::Qci qci = ns3::EpsBearer::NGBR_VIDEO_TCP_DEFAULT;
       uint16_t rnti = it->first.m_rnti;
+      uint8_t lcid = it->first.m_lcId;
       FfMacSchedSapProvider::SchedDlRlcBufferReqParameters& rrp = it->second;
 
-      cout << (i + 1) << "\t" << rnti << "\t" << (uint16_t) (it->first.m_lcId) << "\t";
-      cout << rrp.m_rlcTransmissionQueueHolDelay << "\t" << rrp.m_rlcRetransmissionHolDelay << "\t";
-      cout << rrp.m_rlcTransmissionQueueSize << "\t";
-      cout << rrp.m_rlcRetransmissionQueueSize << endl;
+      cout << (i + 1) << "\t" << rnti << "\t" << (uint16_t)lcid << "\t";
+      cout << rrp.m_rlcTransmissionQueueHolDelay << "\t" << rrp.m_rlcTransmissionQueueSize << "\t";
+      cout << rrp.m_rlcRetransmissionHolDelay << "\t" << rrp.m_rlcRetransmissionQueueSize << endl;
 
-      if (enbRrc->HasUeManager(rnti))
-      {
-        std::map<uint8_t, Ptr<LteDataRadioBearerInfo>>::iterator 
-        pdrb = enbRrc->GetUeManager(rnti)->m_drbMap.begin();
-        qci = (++pdrb)->second->m_epsBearer.qci;
+      ns3::EpsBearer::Qci qci = ns3::EpsBearer::NGBR_VIDEO_TCP_DEFAULT;
+      if (enbRrc->HasUeManager (rnti)) {
+        // key <== drbID
+        std::map<uint8_t, Ptr<LteDataRadioBearerInfo>> dm = enbRrc->GetUeManager(rnti)->m_drbMap;
+        for(auto itt = dm.begin(); itt != dm.end(); itt++) {
+          if(lcid == itt->second->m_logicalChannelIdentity) {
+            qci = itt->second->m_epsBearer.qci;
+            break;
+          }
+        }
       }
       Ptr<LteAmc> amc = pff->m_amc;
       uint8_t cqi = pff->m_p10CqiRxed.find (rnti)->second;
@@ -323,8 +343,7 @@ MyGetObservation(void)
       for (int k = 0; k < nOfprb / 2; k++)
       {
         list<int> temp;
-        if (it->first.m_rnti != 0 && it->second.m_rlcTransmissionQueueSize != 0 &&
-            trans > 0)
+        if (rnti != 0 && rrp.m_rlcTransmissionQueueSize != 0 && trans > 0)
         {
           if (trans - amc->GetDlTbSizeFromMcs (mcs, 2) / 8 >= 0)
             temp.push_back (amc->GetDlTbSizeFromMcs (mcs, 2) / 8);
@@ -370,6 +389,7 @@ MyGetObservation(void)
   }
   else
   {
+    cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << ls.size() << endl;
   }
   return box;
 }
@@ -405,45 +425,39 @@ MyExecuteActions (Ptr<OpenGymDataContainer> action)
   }
   for (uint32_t i = 0; i < tu_ac->size(); i += 3)
     {
+    uint32_t cell = DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i + 0))->GetValue ();
+    uint32_t rnti = DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i + 1))->GetValue ();
+    uint32_t rbg  = DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i + 2))->GetValue ();
+
       //如果没有动作，标记为9999
-      if (DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i + 2))->GetValue () == 9999)
-        {
-          for(uint32_t k = 0 ; k < enbDevs.GetN(); k++)
+    if(rbg == 9999) {
+      for (uint32_t k = 0; k < enbDevs.GetN (); k++)
           {
             ac_s[k] += to_string (9999);
           }
         }
-      else
-        {
+    else {
           //第i个波束（eNB）的调度信息保存为 RNTI1 资源编号1 RNTI2 资源编号2 RNTI3 资源编号3 …… 形式的字符串
-          ac_s[DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i))->GetValue ()] +=
-              (to_string (DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i + 1))->GetValue ()) +
-               " " +
-               to_string (DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i + 2))->GetValue ()));
-          ac_s[DynamicCast<OpenGymDiscreteContainer> (tu_ac->Get (i))->GetValue ()] += " ";
+      ac_s[cell] += (to_string(rnti) + " " + to_string(rbg));
+      ac_s[cell] += " "; 
         }
     }
   cout << endl;
-  NS_LOG_UNCOND ("(" << stepCounter << "时刻)Action: \n" << tu_ac);
+  NS_LOG_UNCOND ("(" << stepCounter << "时刻)Action: " << tu_ac << endl);
   //以字符串的形式将动作传递到各个波束（eNB）进行调度
   cout << endl;
   cout << "(" << stepCounter << "时刻)调度结果: " << endl;
   for (uint16_t i = 0; i < enbDevs.GetN(); i++)
     {
-      
-      PointerValue ptr;
-      enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetCcMap ().at (0)->GetAttribute (
-          "FfMacScheduler", ptr); //获取波束(eNB)i的调度器
-      Ptr<FfMacScheduler> ff = ptr.Get<FfMacScheduler> ();
+    Ptr<FfMacScheduler> ff = GetSchedulerForEnb(i);
       StringValue c;
       //通过SetAttribute将动作参数传到调度器中
-      ff->SetAttribute ("test", StringValue (ac_s[i]));
+    ff->SetAttribute ("test",   StringValue (ac_s[i]));
       ff->SetAttribute ("cellid", StringValue (to_string(i)));
       //分别打印各个波束的调度信息
       ff->GetAttribute ("test", c);
       vector<string> vcs = split (c.Get ().c_str (), " ");
     }
-   
   return true;
 }
 
@@ -482,9 +496,6 @@ MyGetReward (void)
       }
       r.peruerbbitmap = bitmap;         //t时刻调度结果
 
-
-
-      
       map<uint32_t, vector<uint32_t>> ue_states;
       for (std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator
                it = pff->m_rlcBufferReq.begin ();
@@ -663,35 +674,31 @@ MyGetReward (void)
 //获取完成调度后的rlcbuffer信息
 void rlc()
 {
-  cout << endl;
-    cout << "(" << stepCounter << "时刻)调度后的rlcbuffer: " << endl;
-    for (uint32_t i = 0; i < enbDevs.GetN(); i++)
+  cout << endl << "(" << stepCounter << "时刻)调度后的rlcbuffer: " << endl;
+  cout << "eNB\tRNTI\tLCID\t时延tx\tTXLen\t时延retx\tReTxLen" << endl;
+  cout << "===============================================================" << endl;
+  for (uint32_t i = 0; i < enbDevs.GetN (); i++)
+  {
+    Ptr<LteEnbRrc> enbRrc = GetEnb(i)->GetRrc ();
+    Ptr<DacFfMacScheduler> pff = GetSchedulerForEnb(i);
+    for (auto it = pff->m_rlcBufferReq.begin (); it != pff->m_rlcBufferReq.end (); it++)
     {
-      PointerValue ptr;
-      enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetCcMap ().at (0)->GetAttribute (
-          "FfMacScheduler", ptr);
-     Ptr<LteEnbRrc> enbRrc = enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetRrc ();
+      uint16_t rnti = it->first.m_rnti;
+      uint8_t lcid = it->first.m_lcId;
+      FfMacSchedSapProvider::SchedDlRlcBufferReqParameters &rrp = it->second;
 
-      Ptr<FfMacScheduler> ff = ptr.Get<FfMacScheduler> ();
-      Ptr<DacFfMacScheduler> pff = ff->GetObject<DacFfMacScheduler> ();
-
-      for (std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator
-               it = pff->m_rlcBufferReq.begin ();
-           it != pff->m_rlcBufferReq.end (); it++)
-        {
-
-          cout << i+1 << "-" << it->first.m_rnti  <<  endl;
-          cout << "---时延:" << it->second.m_rlcTransmissionQueueHolDelay << " ---tx:" << it->second.m_rlcTransmissionQueueSize  << endl;
-          if(rewardParameters.back()[i].rlcbuffer.find(it->first.m_rnti) != rewardParameters.back()[i].rlcbuffer.end() && rewardParameters.back()[i].rlcbuffer.find(it->first.m_rnti)->second.m_rlcTransmissionQueueSize > 0)
-          {
-            double tx = (double)rewardParameters.back()[i].rlcbuffer.find(it->first.m_rnti)->second.m_rlcTransmissionQueueSize - it->second.m_rlcTransmissionQueueSize;
-            // cout << "-----------tx: "<< tx << endl;
-            rewardParameters.back()[i].rlcrxstate.insert(pair<uint32_t, double>(it->first.m_rnti, tx));
-          }
-          
-        }
+      cout << (i + 1) << "\t" << rnti << "\t" << (uint16_t) lcid << "\t";
+      cout << rrp.m_rlcTransmissionQueueHolDelay << "\t" << rrp.m_rlcTransmissionQueueSize << "\t";
+      cout << rrp.m_rlcRetransmissionHolDelay << "\t" << rrp.m_rlcRetransmissionQueueSize << endl;
+      if(rewardParameters.back()[i].rlcbuffer.find(rnti) != rewardParameters.back()[i].rlcbuffer.end() && 
+         rewardParameters.back()[i].rlcbuffer.find(rnti)->second.m_rlcTransmissionQueueSize > 0)
+      {
+        double tx = (double)rewardParameters.back()[i].rlcbuffer.find(rnti)->second.m_rlcTransmissionQueueSize - rrp.m_rlcTransmissionQueueSize;
+        // cout << "-----------tx: "<< tx << endl;
+        rewardParameters.back()[i].rlcrxstate.insert(pair<uint32_t, double>(rnti, tx));
+      }
     }
-
+  }
 }
 //获取sinr
 void sinr()
@@ -765,8 +772,6 @@ main (int argc, char *argv[])
   cmd.AddValue ("simTime", "Simulation time in seconds. Default: 10s", simulationTime);
   cmd.AddValue ("testArg", "Extra simulation argument. Default: 0", testArg);
   //cmd.Parse (argc, argv);
-  
-
   
   double radius = 5000.0;//基站小区半径
   double high = 1000;//基站高度
