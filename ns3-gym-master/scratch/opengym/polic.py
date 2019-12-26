@@ -51,7 +51,7 @@ if __name__ == "__main__":
     load_path = None 
     save_path = None 
 
-    PG = PolicyGradient(n_x = sizeperq*nOfenb*nOfchannel+nOfenb*nOfchannel,n_y = nOfenb*nOfchannel,learning_rate=0.005,reward_decay=1,load_path=load_path,save_path=save_path,ep=0.99,nOfChannel = nOfchannel)
+    PG = PolicyGradient(n_x = sizeperq*nOfenb*nOfchannel+nOfenb*nOfchannel,n_y = nOfchannel*nOfenb,learning_rate=0.005,reward_decay=1,load_path=load_path,save_path=save_path,ep=0.99,nOfChannel = nOfchannel)
 
 env = ns3env.Ns3Env(port=port, startSim=startSim, simSeed=seed, simArgs=simArgs, debug=debug)
 
@@ -126,15 +126,16 @@ try:
                         
                         if action < nOfchannel:         #判断是否为有效动作
                             observation[k][4] = action  #改变状态
-                            action_list.append(observation_step[k*sizeperq])#cellid
-                            action_list.append(observation_step[k*sizeperq+1])#rnti
+                            action_list.append(observation[k][0])#cellid
+                            action_list.append(observation[k][1])#rnti
                             action_list.append(action)  #资源编号
                         else:
                             action_list.append(0)
                             action_list.append(0)
                             action_list.append(0)
-
-                reward = 0
+                    reward = 0
+                    if stepIdx > 100 and k < numue-1:
+                        s,a,r = PG.store_transition(observation_step, action+observation[k][0]*nOfchannel, reward)
                 #大step
                 d = ()
                 for b in range(len(action_list)):
@@ -150,7 +151,7 @@ try:
                 plt.ioff()             # 关闭画图的窗口
                 reward = reward_step
                 if stepIdx > 100:
-                    s,a,r = PG.store_transition(observation_step, action, reward)
+                    s,a,r = PG.store_transition(observation_step, action+observation[numue-1][0]*nOfchannel, reward)
                 if stepIdx%6 == 0 and stepIdx > 100:
                     PG.learn()
                 

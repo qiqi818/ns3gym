@@ -120,10 +120,59 @@ class PolicyGradient:
 
         # Run forward propagation to get softmax probabilities
         prob_weights = self.sess.run(self.outputs_softmax, feed_dict = {self.X: observation})
-        # print("---weights: \n",prob_weights)
 #        print(prob_weights[0])
         for n in range(len(ii[0])):
             ii[0][n] = ii[0][n] + int(cellid*self.nOfChannel)
+        # print(ii)
+        if sum(prob_weights[0][ii]) > 0:
+            prob_weights = prob_weights[0][ii]/sum(prob_weights[0][ii])
+        else:
+            prob_weights = prob_weights[0][ii]
+        # Select action using a biased sample
+        # this will return the index of the action we've sampled
+        # try:
+        print(prob_weights)
+        if random.random() <= self.ep:
+            action = random.randint(0, len(prob_weights.ravel())-1)
+        else:
+            try:
+                action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
+                # action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
+            except:
+                action = random.randint(0, len(prob_weights.ravel())-1)
+        action = ii[0][action] - int(cellid*self.nOfChannel)
+
+        matrixOfChanAlloc[int(cellid)][action] = 1
+
+
+        return action#资源编号
+
+
+
+
+    def choose_action2(self, observation,matrixOfChanAlloc,cellid):
+        """
+            Choose action based on observation
+
+            Arguments:
+                observation: array of state, has shape (num_features)
+
+            Returns: index of action we want to choose
+        """
+        # Reshape observation to (num_features, 1)
+        observation = observation[:, np.newaxis]
+        
+        ii = np.where(matrixOfChanAlloc[int(cellid),:].ravel() == 0)#挑选该波束下信道占用矩阵没有被占用的位置
+       
+        if ii[0].size ==0: #若没有可分配的资源,则输出无效资源编号
+            return 99
+
+        # Run forward propagation to get softmax probabilities
+        prob_weights = self.sess.run(self.outputs_softmax, feed_dict = {self.X: observation})
+        # print("---weights: \n",prob_weights)
+#        print(prob_weights[0])
+        # for n in range(len(ii[0])):
+        #     ii[0][n] = ii[0][n] + int(cellid*self.nOfChannel)
         if sum(prob_weights[0][ii]) > 0:
             prob_weights = prob_weights[0][ii]/sum(prob_weights[0][ii])
         else:
@@ -138,14 +187,12 @@ class PolicyGradient:
         else:
             # action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
             action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
-        action = ii[0][action] - int(cellid*self.nOfChannel)
+        action = ii[0][action]
 
         matrixOfChanAlloc[int(cellid)][action] = 1
 
 
         return action#资源编号
-
-
 
 
     # def learn(self):
