@@ -123,7 +123,7 @@ class PolicyGradient:
         # print("---weights: \n",prob_weights)
 #        print(prob_weights[0])
         for n in range(len(ii[0])):
-            ii[0][n] = ii[0][n] + int(observation[0]*self.nOfChannel)
+            ii[0][n] = ii[0][n] + int(cellid*self.nOfChannel)
         if sum(prob_weights[0][ii]) > 0:
             prob_weights = prob_weights[0][ii]/sum(prob_weights[0][ii])
         else:
@@ -138,9 +138,9 @@ class PolicyGradient:
         else:
             # action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
             action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
-        action = ii[0][action] - int(observation[0]*self.nOfChannel)
+        action = ii[0][action] - int(cellid*self.nOfChannel)
 
-        matrixOfChanAlloc[int(observation[0][0])][action] = 1
+        matrixOfChanAlloc[int(cellid)][action] = 1
 
 
         return action#资源编号
