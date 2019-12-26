@@ -136,8 +136,8 @@ class PolicyGradient:
             # action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
             action = random.randint(0, len(prob_weights.ravel())-1)
         else:
-            action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
-            # action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
+            # action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
+            action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
         action = ii[0][action] - int(observation[0]*self.nOfChannel)
 
         matrixOfChanAlloc[int(observation[0][0])][action] = 1

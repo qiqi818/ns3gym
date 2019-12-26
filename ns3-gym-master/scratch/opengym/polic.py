@@ -41,8 +41,8 @@ debug = False
 # env1 = gym.make('sateDCA_ENV-v0')
 # env1 = env1.unwrapped
 nOfenb = 2
-nOfchannel = 25
-nOfue = 200
+nOfchannel = 12
+nOfue = 2
 sizeperq = 5
 
 if __name__ == "__main__":
@@ -83,7 +83,7 @@ try:
             
             stepIdx += 1
             if stepIdx % 100 == 0:
-                PG.ep = PG.ep * 0.95
+                PG.ep = PG.ep * 0.7
             ax.append(stepIdx)
             print("stepIdx: ",stepIdx)
             # ax.append(stepIdx)

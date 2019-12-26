@@ -102,12 +102,10 @@ struct rParameters {
 };
 
 list< vector< struct rParameters > > rewardParameters;//用来存储奖励相关参数的变量，时间<小区<struct>>
-
-uint32_t bandwidth = 100;//系统带宽
+uint32_t  bandwidth = 25;
 uint32_t rbgSize = getRbgSizeFromBandwidth(bandwidth);//获取rbgsize，即一个rbg包含多少个prb
 
-uint8_t  bandwidth = 25;
-int      num_ue_ = 0;
+
 uint16_t numberOfenb = 2;//enb数目
 uint16_t numberOfRandomUes = 2;//ue数量
 uint16_t numOfrbg = bandwidth/rbgSize;//rbg数量
@@ -328,11 +326,9 @@ MyGetObservation(void)
       Ptr<LteAmc> amc = pff->m_amc;
       uint8_t cqi = pff->m_p10CqiRxed.find (rnti)->second;
       uint8_t mcs = amc->GetMcsFromCqi (cqi);
-      int nOfprb = 0;
-      uint32_t trans = 0;
+      uint32_t nOfprb = 0;
       if (rnti != 0 && rrp.m_rlcTransmissionQueueSize != 0)
       {
-        trans = rrp.m_rlcTransmissionQueueSize;
         nOfprb = rbgSize;
         //统计每个ue需要多少个prb
         while ((uint32_t) amc->GetDlTbSizeFromMcs (mcs, nOfprb) / 8 <
@@ -343,7 +339,7 @@ MyGetObservation(void)
       }
 
       //拆分状态
-      for (int k = 0; k < nOfprb / rbgSize; k++)
+      for (uint32_t k = 0; k < nOfprb / rbgSize; k++)
       {
         list<int> temp;
         if (it->first.m_rnti != 0 && it->second.m_rlcTransmissionQueueSize != 0)
@@ -356,17 +352,16 @@ MyGetObservation(void)
           temp.push_back (cqi);
           temp.push_back (qci);
         }
+        ls.push_back (temp);
         }
-      ls.sort (); //依等待传输的数据量排序
-      ls.reverse();
+
     }
     ls.sort (); //依等待传输的数据量排序
+    ls.reverse();
   }
   uint16_t num_ue = 0; //统计总的业务请求数
   //将ls中的状态存入box，若请求数大于enbDevs.GetN()*numOfrbg，则截断
   for (list<list<int>>::iterator it = ls.begin (); it != ls.end () && num_ue < enbDevs.GetN()*numOfrbg; it++)
-  {
-    for (list<int>::iterator iz = it->begin (); iz != it->end (); iz++)
     {
       for (list<int>::iterator iz = it->begin (); iz != it->end (); iz++)
         {
@@ -381,10 +376,8 @@ MyGetObservation(void)
         box->AddValue (0);//
       num_ue++;
     }
-    num_ue++;
-  }
 
-  num_ue_ = num_ue;
+
 
   //进行补0
   if (ls.size () <= enbDevs.GetN()*numOfrbg)
@@ -985,7 +978,7 @@ main (int argc, char *argv[])
                                                InetSocketAddress (ueIpIfaces.GetAddress (u), dlPort));
           cout << "ue-" << u <<  ": " << ueIpIfaces.GetAddress (u) << endl;
           dlClientHelper.SetAttribute("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=0.9]"));   
-          dlClientHelper.SetAttribute("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0.01]"));
+          dlClientHelper.SetAttribute("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
           dlClientHelper.SetAttribute("PacketSize", UintegerValue (256));
           dlClientHelper.SetAttribute("DataRate", DataRateValue (DataRate ("2048kb/s")));
           dlClientHelper.SetAttribute("MaxBytes", UintegerValue (1024000));
