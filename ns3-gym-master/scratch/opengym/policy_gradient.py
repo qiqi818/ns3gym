@@ -101,7 +101,7 @@ class PolicyGradient:
         return action
 
 
-    def choose_action1(self, observation,matrixOfChanAlloc,nOfstep):
+    def choose_action1(self, observation,matrixOfChanAlloc,cellid):
         """
             Choose action based on observation
 
@@ -113,13 +113,14 @@ class PolicyGradient:
         # Reshape observation to (num_features, 1)
         observation = observation[:, np.newaxis]
         
-        ii = np.where(matrixOfChanAlloc[int(observation[0]),:].ravel() == 0)
+        ii = np.where(matrixOfChanAlloc[int(cellid),:].ravel() == 0)#挑选信道占用矩阵没有被占用的位置
        
-        if ii[0].size ==0:
+        if ii[0].size ==0: #若没有可分配的资源,则输出无效资源编号
             return 99
 
         # Run forward propagation to get softmax probabilities
         prob_weights = self.sess.run(self.outputs_softmax, feed_dict = {self.X: observation})
+        # print("---weights: \n",prob_weights)
 #        print(prob_weights[0])
         for n in range(len(ii[0])):
             ii[0][n] = ii[0][n] + int(observation[0]*self.nOfChannel)

@@ -43,7 +43,7 @@ debug = False
 nOfenb = 2
 nOfchannel = 12
 nOfue = 2
-sizeperq = 5
+sizeperq = 5#每个有效请求的长度
 
 if __name__ == "__main__":
 
@@ -97,7 +97,7 @@ try:
                 if obs[sizeperq*j+1] != 0:
                     numue += 1          #统计有效请求数
             
-            action_list = []
+            action_list = []#存储动作的list
             print("obs: ",obs)
             if numue == 0:
                 action_list.append(0)
@@ -113,23 +113,22 @@ try:
                 for k in range(numue):
 
                     ss = []
-                    # ss=observation[k].copy()
                     for a in observation:
                         for b in a:
                             ss.append(b)
                   
-                    ss.extend(matrixOfChanAlloc.copy().reshape(1,nOfenb*nOfchannel).tolist()[0])
-                    # print(ss)
-                    observation_step = np.array(ss).reshape(nOfenb*nOfchannel+sizeperq*len(observation),1).ravel()
+                    ss.extend(matrixOfChanAlloc.copy().reshape(1,nOfenb*nOfchannel).tolist()[0])#请求+信道占用 
+
+                    observation_step = np.array(ss).reshape(nOfenb*nOfchannel+sizeperq*len(observation),1).ravel()#变换为网络输入所要求的维度
                     # print("observation_step: ",observation_step)
-                    if observation_step[k*sizeperq+1] > 0:
-                        action = PG.choose_action1(observation_step,matrixOfChanAlloc,stepIdx)
+                    if observation_step[k*sizeperq+1] > 0:#判断RNTI是否大于0 是否为有效请求
+                        action = PG.choose_action1(observation_step,matrixOfChanAlloc,observation[k][0])#选取动作
                         
-                        if action < nOfchannel:
-                            observation[k][4] = action
-                            action_list.append(observation_step[k*sizeperq])
-                            action_list.append(observation_step[k*sizeperq+1])
-                            action_list.append(action)
+                        if action < nOfchannel:         #判断是否为有效动作
+                            observation[k][4] = action  #改变状态
+                            action_list.append(observation_step[k*sizeperq])#cellid
+                            action_list.append(observation_step[k*sizeperq+1])#rnti
+                            action_list.append(action)  #资源编号
                         else:
                             action_list.append(0)
                             action_list.append(0)
@@ -147,7 +146,7 @@ try:
                 plt.plot(ax,ay)        # 画出当前 ax 列表和 ay 列表中的值的图形
                 plt.xlabel('step')
                 plt.ylabel('吞吐率')
-                plt.pause(0.1)         # 暂停一秒
+                plt.pause(0.01)         # 暂停
                 plt.ioff()             # 关闭画图的窗口
                 reward = reward_step
                 if stepIdx > 100:
