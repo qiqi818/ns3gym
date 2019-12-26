@@ -41,9 +41,9 @@ debug = False
 # env1 = gym.make('sateDCA_ENV-v0')
 # env1 = env1.unwrapped
 nOfenb = 2
-nOfchannel = 12
-nOfue = 2
-
+nOfchannel = 25
+nOfue = 200
+sizeperq = 5
 
 if __name__ == "__main__":
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     load_path = None 
     save_path = None 
 
-    PG = PolicyGradient(n_x = 4+nOfenb*nOfchannel,n_y = nOfenb*nOfchannel,learning_rate=0.005,reward_decay=0.95,load_path=load_path,save_path=save_path,ep=0.99)
+    PG = PolicyGradient(n_x = sizeperq*nOfenb*nOfchannel+nOfenb*nOfchannel,n_y = nOfenb*nOfchannel,learning_rate=0.005,reward_decay=1,load_path=load_path,save_path=save_path,ep=0.99,nOfChannel = nOfchannel)
 
 env = ns3env.Ns3Env(port=port, startSim=startSim, simSeed=seed, simArgs=simArgs, debug=debug)
 
@@ -83,27 +83,60 @@ try:
             
             stepIdx += 1
             if stepIdx % 100 == 0:
-                PG.ep = PG.ep * 0.7
+                PG.ep = PG.ep * 0.95
             ax.append(stepIdx)
             print("stepIdx: ",stepIdx)
             # ax.append(stepIdx)
             # ---------------------------------------------------------------------------------------
             observation = []#环境的观测值，状态observation
-            for j in range((int)(len(obs)/4)):
+            numue = 0
+            
+            for j in range((int)(len(obs)/sizeperq)):
                 #状态
-                observation.append([obs[4*j],obs[4*j+1],obs[4*j+2],obs[4*j+3]])
+                observation.append([obs[sizeperq*j],obs[sizeperq*j+1],obs[sizeperq*j+2],obs[sizeperq*j+3],obs[sizeperq*j+4]])
+                if obs[sizeperq*j+1] != 0:
+                    numue += 1          #统计有效请求数
+            
             action_list = []
             print("obs: ",obs)
-            if(len(observation) == 0):
-                observation_step=[0,0,0,0]
-                ss=observation[k].copy()
-                ss.extend(matrixOfChanAlloc.copy().reshape(1,nOfenb*nOfchannel).tolist()[0])
-                # print(ss)
-                observation_step = np.array(ss).reshape(4+nOfenb*nOfchannel,1).ravel()
-                action = 0
+            if numue == 0:
                 action_list.append(0)
                 action_list.append(0)
                 action_list.append(0)
+                d = ()
+                for b in range(len(action_list)):
+                    d += (spaces.Discrete(int(action_list[b])),)
+                action_ = spaces.Tuple(d)
+                obs, reward_step, done, info = env.step(action_)#获取这一eposide的奖励
+                ay.append(reward_step+0.5)
+            else:
+                for k in range(numue):
+
+                    ss = []
+                    # ss=observation[k].copy()
+                    for a in observation:
+                        for b in a:
+                            ss.append(b)
+                  
+                    ss.extend(matrixOfChanAlloc.copy().reshape(1,nOfenb*nOfchannel).tolist()[0])
+                    # print(ss)
+                    observation_step = np.array(ss).reshape(nOfenb*nOfchannel+sizeperq*len(observation),1).ravel()
+                    # print("observation_step: ",observation_step)
+                    if observation_step[k*sizeperq+1] > 0:
+                        action = PG.choose_action1(observation_step,matrixOfChanAlloc,stepIdx)
+                        
+                        if action < nOfchannel:
+                            observation[k][4] = action
+                            action_list.append(observation_step[k*sizeperq])
+                            action_list.append(observation_step[k*sizeperq+1])
+                            action_list.append(action)
+                        else:
+                            action_list.append(0)
+                            action_list.append(0)
+                            action_list.append(0)
+
+                reward = 0
+                #大step
                 d = ()
                 for b in range(len(action_list)):
                     d += (spaces.Discrete(int(action_list[b])),)
@@ -121,68 +154,8 @@ try:
                     s,a,r = PG.store_transition(observation_step, action, reward)
                 if stepIdx%6 == 0 and stepIdx > 100:
                     PG.learn()
-            for k in range(len(observation)):
-                ss=observation[k].copy()
-                ss.extend(matrixOfChanAlloc.copy().reshape(1,nOfenb*nOfchannel).tolist()[0])
-                # print(ss)
-                observation_step = np.array(ss).reshape(nOfenb*nOfchannel+4,1).ravel()
-                print("observation_step: ",observation_step)
-                if observation_step[1] > 0:
-                    action = PG.choose_action1(observation_step,matrixOfChanAlloc,stepIdx)
-                    if action < 12:
-                        action_list.append(observation_step[0])
-                        action_list.append(observation_step[1])
-                        action_list.append(action)
-                    else:
-                        action_list.append(0)
-                        action_list.append(0)
-                        action_list.append(0)
-                    reward = 0
-                    if k == len(observation)-1 or observation[k+1][1] == 0:
-                        #大step
-                        d = ()
-                        for b in range(len(action_list)):
-                            d += (spaces.Discrete(int(action_list[b])),)
-                        action_ = spaces.Tuple(d)
-                        obs, reward_step, done, info = env.step(action_)#获取这一eposide的奖励
-                        ay.append(reward_step+0.5)
-                        plt.clf()              # 清除之前画的图
-                        plt.plot(ax,ay)        # 画出当前 ax 列表和 ay 列表中的值的图形
-                        plt.xlabel('step')
-                        plt.ylabel('吞吐率')
-                        plt.pause(0.1)         # 暂停一秒
-                        plt.ioff()             # 关闭画图的窗口
-                        reward = reward_step
-                        if stepIdx > 100:
-                            s,a,r = PG.store_transition(observation_step, action, reward)
-                        if stepIdx%6 == 0 and stepIdx > 100:
-                            PG.learn()
-                        break
-                else:
-                    action = 0
-                    action_list.append(0)
-                    action_list.append(0)
-                    action_list.append(0)
-                    #大step
-                    d = ()
-                    for b in range(len(action_list)):
-                        d += (spaces.Discrete(int(action_list[b])),)
-                    action_ = spaces.Tuple(d)
-                    obs, reward_step, done, info = env.step(action_)#获取这一eposide的奖励
-                    ay.append(reward_step+0.5)
-                    plt.clf()              # 清除之前画的图
-                    plt.plot(ax,ay)        # 画出当前 ax 列表和 ay 列表中的值的图形
-                    plt.xlabel('step')
-                    plt.ylabel('吞吐率')
-                    plt.pause(0.001)         # 暂停一秒
-                    plt.ioff()             # 关闭画图的窗口
-
-                    reward = reward_step
-                    if stepIdx > 100:
-                        s,a,r = PG.store_transition(observation_step, action, reward)
-                    if stepIdx%6 == 0 and stepIdx > 100:
-                        PG.learn()
-                    break
+                
+                
         currIt += 1
         if currIt == iterationNum:
             break

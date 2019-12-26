@@ -17,7 +17,8 @@ class PolicyGradient:
         reward_decay=0.95,
         load_path=None,
         save_path=None,
-        ep = 0.99
+        ep = 0.99,
+        nOfChannel = 0
     ):
 
         self.n_x = n_x
@@ -35,6 +36,7 @@ class PolicyGradient:
 
         self.cost_history = []
         self.ep = ep
+        self.nOfChannel = nOfChannel
         self.sess = tf.Session()
 
         # $ tensorboard --logdir=logs
@@ -111,27 +113,17 @@ class PolicyGradient:
         # Reshape observation to (num_features, 1)
         observation = observation[:, np.newaxis]
         
-#        env.beamOfUser
-        # iii = np.where(env.beamOfUser>0)[0]
-        
-        # flag = False
-        # if iii.size ==0:
-        #     flag = True
-        #     return -1,flag
         ii = np.where(matrixOfChanAlloc[int(observation[0]),:].ravel() == 0)
        
-        # print("**************")
-        # print(len(ii[0]))
-        # print(ii[0].size())
         if ii[0].size ==0:
             return 99
-#        print("--------------")
-#        print(ii)
+
         # Run forward propagation to get softmax probabilities
         prob_weights = self.sess.run(self.outputs_softmax, feed_dict = {self.X: observation})
+        print("---weights: \n",prob_weights)
 #        print(prob_weights[0])
         for n in range(len(ii[0])):
-            ii[0][n] = ii[0][n] + int(observation[0]*12)
+            ii[0][n] = ii[0][n] + int(observation[0]*self.nOfChannel)
         if sum(prob_weights[0][ii]) > 0:
             prob_weights = prob_weights[0][ii]/sum(prob_weights[0][ii])
         else:
@@ -141,12 +133,15 @@ class PolicyGradient:
         # try:
         
         if random.random() <= self.ep and sum(prob_weights)>0:
-            action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
+            # action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
+            action = random.randint(0, len(prob_weights.ravel())-1)
         else:
-            action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
-        action = ii[0][action] - int(observation[0]*12)
+            action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
+            # action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
+        action = ii[0][action] - int(observation[0]*self.nOfChannel)
 
-        matrixOfChanAlloc[int(observation[0][0])][action] = observation[1][0]
+        matrixOfChanAlloc[int(observation[0][0])][action] = 1
+
 
         return action#资源编号
 
