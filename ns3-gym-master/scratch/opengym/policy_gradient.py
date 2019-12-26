@@ -120,7 +120,6 @@ class PolicyGradient:
 
         # Run forward propagation to get softmax probabilities
         prob_weights = self.sess.run(self.outputs_softmax, feed_dict = {self.X: observation})
-        print("---weights: \n",prob_weights)
 #        print(prob_weights[0])
         for n in range(len(ii[0])):
             ii[0][n] = ii[0][n] + int(observation[0]*self.nOfChannel)
