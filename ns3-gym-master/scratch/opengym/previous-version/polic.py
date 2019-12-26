@@ -43,7 +43,7 @@ debug = False
 nOfenb = 2
 nOfchannel = 12
 nOfue = 2
-sizeperq = 5#每个有效请求的长度
+sizeperq = 4#每个有效请求的长度
 
 if __name__ == "__main__":
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     load_path = None 
     save_path = None 
 
-    PG = PolicyGradient(n_x = sizeperq*nOfenb*nOfchannel+nOfenb*nOfchannel,n_y = nOfchannel*nOfenb,learning_rate=0.005,reward_decay=1,load_path=load_path,save_path=save_path,ep=0.99,nOfChannel = nOfchannel)
+    PG = PolicyGradient(n_x = sizeperq+nOfenb*nOfchannel,n_y = nOfchannel*nOfenb,learning_rate=0.005,reward_decay=1,load_path=load_path,save_path=save_path,ep=0.99,nOfChannel = nOfchannel)
 
 env = ns3env.Ns3Env(port=port, startSim=startSim, simSeed=seed, simArgs=simArgs, debug=debug)
 
@@ -92,10 +92,10 @@ try:
             observation = []#环境的观测值，状态observation
             numue = 0
             
-            for j in range((int)(len(obs)/sizeperq)):
+            for j in range(int(len(obs)/sizeperq)):
                 #状态
-                observation.append([obs[sizeperq*j],obs[sizeperq*j+1],obs[sizeperq*j+2],obs[sizeperq*j+3],obs[sizeperq*j+4]])
-                if obs[sizeperq*j+1] != 0:
+                observation.append([obs[sizeperq*j],obs[sizeperq*j+1],obs[sizeperq*j+2],obs[sizeperq*j+3]])
+                if obs[sizeperq*j+1] != 0: #若rnti不为0则为有效请求
                     numue += 1          #统计有效请求数
             
             action_list = []#存储动作的list
@@ -114,21 +114,20 @@ try:
                 for k in range(numue):
 
                     ss = []
-                    for a in observation:
-                        for b in a:
-                            ss.append(b)
-                  
+                    # for a in observation:
+                    #     for b in a:
+                    #         ss.append(b)
+                    ss = observation[k].copy()
                     ss.extend(matrixOfChanAlloc.copy().reshape(1,nOfenb*nOfchannel).tolist()[0])#请求+信道占用 
 
-                    observation_step = np.array(ss).reshape(nOfenb*nOfchannel+sizeperq*len(observation),1).ravel()#变换为网络输入所要求的维度
+                    observation_step = np.array(ss).reshape(nOfenb*nOfchannel+sizeperq,1).ravel()#变换为网络输入所要求的维度
                     # print("observation_step: ",observation_step)
-                    if observation_step[k*sizeperq+1] > 0:#判断RNTI是否大于0 是否为有效请求
-                        action = PG.choose_action1(observation_step,matrixOfChanAlloc,observation[k][0])#选取动作
+                    if observation_step[1] > 0:#判断RNTI是否大于0 是否为有效请求
+                        action = PG.choose_action1(observation_step,matrixOfChanAlloc,observation_step[0])#选取动作
                         
                         if action < nOfchannel:         #判断是否为有效动作
-                            observation[k][4] = action  #改变状态
-                            action_list.append(observation[k][0])#cellid
-                            action_list.append(observation[k][1])#rnti
+                            action_list.append(observation_step[0])#cellid
+                            action_list.append(observation_step[1])#rnti
                             action_list.append(action)  #资源编号
                         else:
                             action_list.append(0)
@@ -136,7 +135,8 @@ try:
                             action_list.append(0)
                     reward = 0
                     if stepIdx > 100 and k < numue-1:
-                        s,a,r = PG.store_transition(observation_step, action+observation[k][0]*nOfchannel, reward)
+                        # s,a,r = PG.store_transition(observation_step, action+nOfchannel*int(observation_step[0]), reward)
+                        s,a,r = PG.store_transition(observation_step, action, reward)
                 #大step
                 d = ()
                 for b in range(len(action_list)):
@@ -152,7 +152,9 @@ try:
                 plt.ioff()             # 关闭画图的窗口
                 reward = reward_step
                 if stepIdx > 100:
-                    s,a,r = PG.store_transition(observation_step, action+observation[numue-1][0]*nOfchannel, reward)
+                    # s,a,r = PG.store_transition(observation_step, action+int(nOfchannel*observation[numue-1][0]), reward)
+                    s,a,r = PG.store_transition(observation_step, action, reward)
+
                 if flag == False and (stepIdx-100)%4 == 0 and stepIdx > 100:
                     PG.learn()
                 if flag:
