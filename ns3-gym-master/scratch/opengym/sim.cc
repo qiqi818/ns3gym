@@ -18,7 +18,7 @@
  * Author: Piotr Gawlowicz <gawlowicz.p@gmail.com>
  *
  */
- #include "ns3/netanim-module.h"
+#include "ns3/netanim-module.h"
 #include "ns3/core-module.h"
 #include "ns3/opengym-module.h"
 #include "ns3/core-module.h"
@@ -90,27 +90,26 @@ float stepCounter = -1; //step计数
 
 
 
-  struct rParameters {
-    //map的key都为rnti
-    uint32_t cellid;
-    map<uint32_t, uint32_t> peruerbbitmap;  //调度情况
-    map<uint32_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> rlcbuffer;//rlc层初始情况   队首时延和待传数据量
-    map<uint32_t, vector<double>> phyrxstates;//物理层接收状况统计
-    map<uint32_t, double> rlcrxstate;//调度完成后rlc层情况   队首时延和剩余待传数据量
-    map<uint32_t, vector<uint32_t>> uestates;  //ue的相关信息  现有cqi和qci
-    map<uint32_t, SpectrumValue> sinr;   //信干噪比
-  };
-
-
+struct rParameters {
+  //map的key都为rnti
+  uint32_t cellid;
+  map<uint32_t, uint32_t> peruerbbitmap;  //调度情况
+  map<uint32_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> rlcbuffer;//rlc层初始情况   队首时延和待传数据量
+  map<uint32_t, vector<double>> phyrxstates;//物理层接收状况统计
+  map<uint32_t, double> rlcrxstate;//调度完成后rlc层情况   队首时延和剩余待传数据量
+  map<uint32_t, vector<uint32_t>> uestates;  //ue的相关信息  现有cqi和qci
+  map<uint32_t, SpectrumValue> sinr;   //信干噪比
+};
 
 list< vector< struct rParameters > > rewardParameters;//用来存储奖励相关参数的变量，时间<小区<struct>>
 
 uint32_t bandwidth = 100;//系统带宽
 uint32_t rbgSize = getRbgSizeFromBandwidth(bandwidth);//获取rbgsize，即一个rbg包含多少个prb
 
-int num_ue_ = 0;
+uint8_t  bandwidth = 25;
+int      num_ue_ = 0;
 uint16_t numberOfenb = 2;//enb数目
-uint16_t numberOfRandomUes = 200;//ue数量
+uint16_t numberOfRandomUes = 2;//ue数量
 uint16_t numOfrbg = bandwidth/rbgSize;//rbg数量
 
 Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
@@ -150,8 +149,7 @@ split (const char *s, const char *delim)
 /*
   获取物理层接收状态的回调函数
 */
-void DlPhyReceptionCallback(Ptr<PhyRxStatsCalculator> phyRxStats,
-                                              std::string path, PhyReceptionStatParameters params)
+void DlPhyReceptionCallback(std::string path, PhyReceptionStatParameters params)
 {
   map<uint32_t, vector<double>>::iterator it = rewardParameters.back()[params.m_cellId-1].phyrxstates.find(params.m_rnti);
   if(it == rewardParameters.back()[params.m_cellId-1].phyrxstates.end() || (it != rewardParameters.back()[params.m_cellId-1].phyrxstates.end() && (int64_t)it->second[1] != params.m_timestamp))
@@ -209,18 +207,27 @@ void DlPhyReceptionCallback(Ptr<PhyRxStatsCalculator> phyRxStats,
   
 }
 
-
-Ptr<PhyRxStatsCalculator> m_phyRxStats = CreateObject<PhyRxStatsCalculator> ();
 void tracephyrx()
 {
-  Config::Connect ("/NodeList/*/DeviceList/*/ComponentCarrierMapUe/*/LteUePhy/DlSpectrumPhy/DlPhyReception",
-                   MakeBoundCallback (&DlPhyReceptionCallback, m_phyRxStats));
+  Config::Connect("/NodeList/*/DeviceList/*/ComponentCarrierMapUe/*/LteUePhy/DlSpectrumPhy/DlPhyReception",
+                   MakeCallback(&DlPhyReceptionCallback));
 }
 
+Ptr<LteEnbNetDevice>
+GetEnb (int enb_idx)
+{
+  return enbDevs.Get (enb_idx)->GetObject<LteEnbNetDevice> ();
+}
 
-
-
-
+Ptr<DacFfMacScheduler>
+GetSchedulerForEnb (int enb_idx)
+{
+  PointerValue ptr;
+  GetEnb (enb_idx)->GetCcMap ().at (0)->GetAttribute ("FfMacScheduler", ptr);
+  Ptr<FfMacScheduler> ff = ptr.Get<FfMacScheduler> ();
+  Ptr<DacFfMacScheduler> pff = ff->GetObject<DacFfMacScheduler> ();
+  return pff;
+}
 /*
 Define observation space
 用于gym从ns3获取状态空间
@@ -229,9 +236,7 @@ Define observation space
 Ptr<OpenGymSpace>
 MyGetObservationSpace (void)
 {
-  
   cout << "-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+" << endl;
-
   uint32_t nodeNum = 5;
   float low = 0.0;
   float high = 10.0;
@@ -266,115 +271,102 @@ Define game over condition
 bool
 MyGetGameOver (void)
 {
-
   bool isGameOver = false;
   NS_LOG_UNCOND ("GameOver: " << isGameOver);
-
   return isGameOver;
 }
+
 
 /*
 Collect observations
 用于从ns3中统计环境信息，封装到OpenGymBoxContainer中
 */
 Ptr<OpenGymDataContainer>
-MyGetObservation (void)
+MyGetObservation(void)
 {
-
   stepCounter += 1;
   cout << "----------------------以上为step: " << stepCounter-1 << "时刻----------------------" << endl;
   cout << endl;
   cout << "----------------------以下为step: " << stepCounter << "时刻----------------------" << endl;
-  cout << "step: " << stepCounter << endl;
-  uint32_t nodeNum = 1000;
+  cout << "OBS for step: " << stepCounter << " 调度前的RlcBuffer" << endl;
+  uint32_t nodeNum = enbDevs.GetN ();
   std::vector<uint32_t> shape = {
       nodeNum,
   };
-  Ptr<OpenGymBoxContainer<uint32_t>> box = CreateObject<OpenGymBoxContainer<uint32_t>> (
-      shape); //创建OpenGymBoxContainer用以包装存储observation，进而传递给gym
+
+  Ptr<OpenGymBoxContainer<uint32_t>> box = 
+  CreateObject<OpenGymBoxContainer<uint32_t>>(shape); //创建OpenGymBoxContainer用以包装存储observation，进而传递给gym
 
   list<list<int>> ls;
-  cout << endl;
-  cout << "(" << stepCounter << "时刻)调度前的rlcbuffer:" << endl;
+  cout << "eNB\tRNTI\tLCID\t时延tx\t时延retx\tTXLen\tReTxLen" << endl;
+  cout << "===============================================================" << endl;
   for (uint16_t i = 0; i < enbDevs.GetN(); i++)
+  {
+    Ptr<LteEnbRrc> enbRrc = GetEnb(i)->GetRrc ();
+    Ptr<DacFfMacScheduler> pff = GetSchedulerForEnb(i);
+
+    // for (std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator
+    //          it = pff->m_rlcBufferReq.begin ();
+    //      it != pff->m_rlcBufferReq.end (); it++)
+    for (auto it = pff->m_rlcBufferReq.begin (); it != pff->m_rlcBufferReq.end (); it++)
     {
-      PointerValue ptr;
-      enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetCcMap ().at (0)->GetAttribute (
-          "FfMacScheduler", ptr);
-     Ptr<LteEnbRrc> enbRrc = enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetRrc ();
+      ns3::EpsBearer::Qci qci = ns3::EpsBearer::NGBR_VIDEO_TCP_DEFAULT;
+      uint16_t rnti = it->first.m_rnti;
+      FfMacSchedSapProvider::SchedDlRlcBufferReqParameters& rrp = it->second;
 
-      Ptr<FfMacScheduler> ff = ptr.Get<FfMacScheduler> ();
-      Ptr<DacFfMacScheduler> pff = ff->GetObject<DacFfMacScheduler> ();
-      for (std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator
-               it = pff->m_rlcBufferReq.begin ();
-           it != pff->m_rlcBufferReq.end (); it++)
-        {
-          ns3::EpsBearer::Qci qci;
+      cout << (i + 1) << "\t" << rnti << "\t" << (uint16_t) (it->first.m_lcId) << "\t";
+      cout << rrp.m_rlcTransmissionQueueHolDelay << "\t" << rrp.m_rlcRetransmissionHolDelay << "\t";
+      cout << rrp.m_rlcTransmissionQueueSize << "\t";
+      cout << rrp.m_rlcRetransmissionQueueSize << endl;
 
-          cout << i+1 << "-" << it->first.m_rnti  <<  endl;
-          cout << "---时延:" << it->second.m_rlcTransmissionQueueHolDelay << " ---tx:" << it->second.m_rlcTransmissionQueueSize  << endl;
-          if(enbRrc->HasUeManager(it->first.m_rnti))
+      if (enbRrc->HasUeManager(rnti))
+      {
+        std::map<uint8_t, Ptr<LteDataRadioBearerInfo>>::iterator 
+        pdrb = enbRrc->GetUeManager(rnti)->m_drbMap.begin();
+        qci = (++pdrb)->second->m_epsBearer.qci;
+      }
+      Ptr<LteAmc> amc = pff->m_amc;
+      uint8_t cqi = pff->m_p10CqiRxed.find (rnti)->second;
+      uint8_t mcs = amc->GetMcsFromCqi (cqi);
+      int nOfprb = 0;
+      uint32_t trans = 0;
+      if (rnti != 0 && rrp.m_rlcTransmissionQueueSize != 0)
+      {
+        trans = rrp.m_rlcTransmissionQueueSize;
+        nOfprb = rbgSize;
+        //统计每个ue需要多少个prb
+        while ((uint32_t) amc->GetDlTbSizeFromMcs (mcs, nOfprb) / 8 <
+                    rrp.m_rlcTransmissionQueueSize && nOfprb <= bandwidth/rbgSize)
         {
-          std::map <uint8_t, Ptr<LteDataRadioBearerInfo> >::iterator pdrb = enbRrc->GetUeManager(it->first.m_rnti)->m_drbMap.begin();
-          qci = (++pdrb)->second->m_epsBearer.qci;
-         }
-        Ptr<LteAmc> amc = pff-> m_amc;
-        uint8_t cqi = pff->m_p10CqiRxed.find(it->first.m_rnti)->second;
-        uint8_t mcs = amc->GetMcsFromCqi(cqi);
-        int nOfprb = 0;
-        // uint32_t trans = 0;
+          nOfprb += rbgSize;
+        }
+      }
+
+      //拆分状态
+      for (int k = 0; k < nOfprb / rbgSize; k++)
+      {
+        list<int> temp;
         if (it->first.m_rnti != 0 && it->second.m_rlcTransmissionQueueSize != 0)
         {
-          // trans = it->second.m_rlcTransmissionQueueSize;
-          nOfprb = rbgSize;
-          //统计每个ue需要多少个prb
-          while((uint32_t)amc->GetDlTbSizeFromMcs(mcs, nOfprb) / 8 < it->second.m_rlcTransmissionQueueSize && nOfprb <= 24)
-          {
-            nOfprb += rbgSize;
-          } 
-        }
-        
-        //拆分状态
-        for(uint32_t k = 0 ; k < nOfprb/rbgSize; k++)
-        {
+          temp.push_back(it->second.m_rlcTransmissionQueueSize);
 
-          list<int> temp;
-          if (it->first.m_rnti != 0 && it->second.m_rlcTransmissionQueueSize != 0)
-            {
-              temp.push_back(it->second.m_rlcTransmissionQueueSize);
-              // if(trans - amc->GetDlTbSizeFromMcs(mcs, rbgSize)/8 >= 0)
-              //   temp.push_back (amc->GetDlTbSizeFromMcs(mcs, rbgSize)/8);
-              // else
-              //   temp.push_back (trans/8);
-             
-           
-              temp.push_back (i);
-              temp.push_back (it->first.m_rnti);
-              temp.push_back (cqi);
-            
-                if(enbRrc->HasUeManager(it->first.m_rnti))
-                {
-                  
-                  
-                temp.push_back (qci);
-                
-                }
-                else
-                {
-                  temp.push_back (9);
-                
-                }
-            }
-          ls.push_back (temp);
 
+          temp.push_back (i);
+          temp.push_back (rnti);
+          temp.push_back (cqi);
+          temp.push_back (qci);
         }
         }
       ls.sort (); //依等待传输的数据量排序
       ls.reverse();
     }
+    ls.sort (); //依等待传输的数据量排序
+  }
   uint16_t num_ue = 0; //统计总的业务请求数
   //将ls中的状态存入box，若请求数大于enbDevs.GetN()*numOfrbg，则截断
   for (list<list<int>>::iterator it = ls.begin (); it != ls.end () && num_ue < enbDevs.GetN()*numOfrbg; it++)
+  {
+    for (list<int>::iterator iz = it->begin (); iz != it->end (); iz++)
     {
       for (list<int>::iterator iz = it->begin (); iz != it->end (); iz++)
         {
@@ -389,26 +381,27 @@ MyGetObservation (void)
         box->AddValue (0);//
       num_ue++;
     }
+    num_ue++;
+  }
 
   num_ue_ = num_ue;
 
   //进行补0
   if (ls.size () <= enbDevs.GetN()*numOfrbg)
-    {
-      for (uint16_t i = 0; i < enbDevs.GetN()*numOfrbg - ls.size (); i++)
-        {
-          box->AddValue (0);
-          box->AddValue (0);
-          box->AddValue (0);
-          box->AddValue (0);
-          box->AddValue (0);
-        }
-    }
+  {
+    for (uint16_t i = 0; i < enbDevs.GetN()*numOfrbg - ls.size (); i++)
+      {
+        box->AddValue (0);
+        box->AddValue (0);
+        box->AddValue (0);
+        box->AddValue (0);
+        box->AddValue (0);
+      }
+  }
   else
-    {
-    }
+  {
 
-  // cout << "box: " << box << endl;
+  }
   return box;
 }
 
@@ -432,8 +425,8 @@ ns3接收到从gym中传递过来的封装在OpenGymDataContainer中的动作act
 bool
 MyExecuteActions (Ptr<OpenGymDataContainer> action)
 {
-  Ptr<OpenGymTupleContainer> tu_ac = DynamicCast<OpenGymTupleContainer> (
-      action); //将传递过来的action自动转换为OpenGymTupleContainer
+  Ptr<OpenGymTupleContainer> tu_ac = DynamicCast<OpenGymTupleContainer>(action); 
+  //将传递过来的action自动转换为OpenGymTupleContainer
   //传递过来的OpenGymTupleContainer封装的动作的形式是(CellID1,RNTI1,资源编号1,CellID2,RNTI2,资源编号2,CellID3,RNTI3,资源编号3,……)
   //从OpenGymTupleContainer中读取数据并保存到字符串中
   string ac_s[enbDevs.GetN()];
@@ -450,8 +443,6 @@ MyExecuteActions (Ptr<OpenGymDataContainer> action)
           {
             ac_s[k] += to_string (9999);
           }
-          
-
         }
       else
         {
@@ -503,27 +494,14 @@ MyGetReward (void)
     phyrxstate                 T+2              trace
     sinr                       T+2              使用schedule函数进行事件调度
   */
-
-
-
-
   //用trace获取物理层接收状态
   tracephyrx();
   vector< struct rParameters > rv(enbDevs.GetN());
  
   for(uint8_t i = 0; i < enbDevs.GetN(); i++)
   {
-      PointerValue ptr;
-      enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetCcMap ().at (0)->GetAttribute (
-          "FfMacScheduler", ptr);
-
-      Ptr<FfMacScheduler> ff = ptr.Get<FfMacScheduler> ();
-      Ptr<DacFfMacScheduler> pff = ff->GetObject<DacFfMacScheduler> ();
-
-      
-      enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetCcMap ().at (0)->GetAttribute (
-          "FfMacScheduler", ptr);
-      Ptr<LteEnbRrc> enbRrc = enbDevs.Get (i)->GetObject<LteEnbNetDevice> ()->GetRrc ();
+      Ptr<DacFfMacScheduler> pff = GetSchedulerForEnb(i);
+      Ptr<LteEnbRrc> enbRrc = GetEnb(i)->GetRrc ();
       rParameters r;
       r.cellid = i;
       map<uint32_t, uint32_t> bitmap;
@@ -608,12 +586,6 @@ MyGetReward (void)
     rps1 = *(++rewardParameters.begin());//T+1
     rps2 = *(++(++rewardParameters.begin()));//T+2
     rps3 = rewardParameters.back();//T+3
-    
-
-
-
-
-
 
 
     double tx_right = 0;//正确传输量
@@ -898,19 +870,16 @@ main (int argc, char *argv[])
   // enbPositionAlloc->Add (Vector (0.0, -sqrt(3) * radius/2, high)); //eNB4
 
 
-
-
-
   MobilityHelper mobility;
   mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
   mobility.SetPositionAllocator (enbPositionAlloc);
   mobility.Install (enbNodes);
 
 
-  // Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
+  Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator> ();
   
-  // // ue的位置
-  // uePositionAlloc->Add (Vector (-4000, 100, 0)); //
+  // ue的位置
+  uePositionAlloc->Add (Vector (-4000, 0, 0)); //
   // uePositionAlloc->Add (Vector (-4000, 500, 0)); //
   // uePositionAlloc->Add (Vector (-3000, -1000, 0)); //
   // // uePositionAlloc->Add (Vector (-4000, 0, 0)); //
@@ -919,48 +888,46 @@ main (int argc, char *argv[])
 
 
   // uePositionAlloc->Add (Vector (4000, -1000, 0)); //
-  // uePositionAlloc->Add (Vector (4000, 0, 0)); //
+  uePositionAlloc->Add (Vector (4000, 0, 0)); //
   // uePositionAlloc->Add (Vector (4000, 2000, 0)); //
   // uePositionAlloc->Add (Vector (3000, 0, 0)); //
   // uePositionAlloc->Add (Vector (2000, -3000, 0)); //
   // uePositionAlloc->Add (Vector (4000, -2000, 0)); //
   // uePositionAlloc->Add (Vector (1000, -1000, 0)); //
   // uePositionAlloc->Add (Vector (2000, 1000, 0)); //
-  // // uePositionAlloc->Add (Vector (5000, 2000, 0)); //
+  // uePositionAlloc->Add (Vector (5000, 2000, 0)); //
  
 
-  // //  uePositionAlloc->Add (Vector (0, -4000, 0)); //
+  //  uePositionAlloc->Add (Vector (0, -4000, 0)); //
 
 
-  // // uePositionAlloc->Add (Vector (0, 4000, 0)); //
-  // // uePositionAlloc->Add (Vector (500, 500, 0)); //
+  // uePositionAlloc->Add (Vector (0, 4000, 0)); //
+  // uePositionAlloc->Add (Vector (500, 500, 0)); //
 
 
-  // // MobilityHelper mobility;
-  // mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-  // mobility.SetPositionAllocator (uePositionAlloc);
-  // mobility.Install (ueNodes);
-
-
-
-  Ptr<RandomBoxPositionAllocator> randomUePositionAlloc =
-      CreateObject<RandomBoxPositionAllocator> ();
-  Ptr<UniformRandomVariable> xVal = CreateObject<UniformRandomVariable> ();
-  xVal->SetAttribute ("Min", DoubleValue (-6000.0));
-  xVal->SetAttribute ("Max", DoubleValue (6000.0));
-  randomUePositionAlloc->SetAttribute ("X", PointerValue (xVal));
-  Ptr<UniformRandomVariable> yVal = CreateObject<UniformRandomVariable> ();
-  yVal->SetAttribute ("Min", DoubleValue (-3000.0));
-  yVal->SetAttribute ("Max", DoubleValue (3000.0));
-  randomUePositionAlloc->SetAttribute ("Y", PointerValue (yVal));
-  Ptr<UniformRandomVariable> zVal = CreateObject<UniformRandomVariable> ();
-  zVal->SetAttribute ("Min", DoubleValue (0));
-  zVal->SetAttribute ("Max", DoubleValue (1));
-  randomUePositionAlloc->SetAttribute ("Z", PointerValue (zVal));
-  mobility.SetPositionAllocator (randomUePositionAlloc);
+  // MobilityHelper mobility;
+  mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+  mobility.SetPositionAllocator (uePositionAlloc);
   mobility.Install (ueNodes);
 
 
+
+  // Ptr<RandomBoxPositionAllocator> randomUePositionAlloc =
+  //     CreateObject<RandomBoxPositionAllocator> ();
+  // Ptr<UniformRandomVariable> xVal = CreateObject<UniformRandomVariable> ();
+  // xVal->SetAttribute ("Min", DoubleValue (-6000.0));
+  // xVal->SetAttribute ("Max", DoubleValue (6000.0));
+  // randomUePositionAlloc->SetAttribute ("X", PointerValue (xVal));
+  // Ptr<UniformRandomVariable> yVal = CreateObject<UniformRandomVariable> ();
+  // yVal->SetAttribute ("Min", DoubleValue (-3000.0));
+  // yVal->SetAttribute ("Max", DoubleValue (3000.0));
+  // randomUePositionAlloc->SetAttribute ("Y", PointerValue (yVal));
+  // Ptr<UniformRandomVariable> zVal = CreateObject<UniformRandomVariable> ();
+  // zVal->SetAttribute ("Min", DoubleValue (0));
+  // zVal->SetAttribute ("Max", DoubleValue (1));
+  // randomUePositionAlloc->SetAttribute ("Z", PointerValue (zVal));
+  // mobility.SetPositionAllocator (randomUePositionAlloc);
+  // mobility.Install (ueNodes);
 
   enbDevs = lteHelper->InstallEnbDevice (enbNodes);
   ueDevs = lteHelper->InstallUeDevice (ueNodes);
@@ -1078,24 +1045,24 @@ main (int argc, char *argv[])
          Time startTime = Seconds (startTimeSeconds->GetValue ());
           Time stopTime = Seconds (stopTimeSeconds->GetValue ());
           cout << startTime << endl;
-          serverApps.Get(2*u)->SetStartTime(startTime);
-          serverApps.Get(2*u+1)->SetStartTime(startTime);
-          clientApps.Get(2*u)->SetStartTime (startTime);
-          clientApps.Get(2*u+1)->SetStartTime (startTime);
+          // serverApps.Get(2*u)->SetStartTime(startTime);
+          // serverApps.Get(2*u+1)->SetStartTime(startTime);
+          // clientApps.Get(2*u)->SetStartTime (startTime);
+          // clientApps.Get(2*u+1)->SetStartTime (startTime);
 
-          serverApps.Get(2*u)->SetStopTime (startTime+stopTime );
-          serverApps.Get(2*u+1)->SetStopTime (startTime+stopTime );
-          clientApps.Get(2*u)->SetStopTime (startTime+stopTime );
-          clientApps.Get(2*u+1)->SetStopTime (startTime+stopTime );
-          // serverApps.Get(2*u)->SetStartTime(Seconds(0.001));
-          // serverApps.Get(2*u+1)->SetStartTime(Seconds(0.001));
-          // clientApps.Get(2*u)->SetStartTime (Seconds(0.001));
-          // clientApps.Get(2*u+1)->SetStartTime (Seconds(0.001));
+          // serverApps.Get(2*u)->SetStopTime (startTime+stopTime );
+          // serverApps.Get(2*u+1)->SetStopTime (startTime+stopTime );
+          // clientApps.Get(2*u)->SetStopTime (startTime+stopTime );
+          // clientApps.Get(2*u+1)->SetStopTime (startTime+stopTime );
+          serverApps.Get(2*u)->SetStartTime(Seconds(0.001));
+          serverApps.Get(2*u+1)->SetStartTime(Seconds(0.001));
+          clientApps.Get(2*u)->SetStartTime (Seconds(0.001));
+          clientApps.Get(2*u+1)->SetStartTime (Seconds(0.001));
 
-          // serverApps.Get(2*u)->SetStopTime (Seconds(0.001)+stopTime );
-          // serverApps.Get(2*u+1)->SetStopTime (Seconds(0.001)+stopTime );
-          // clientApps.Get(2*u)->SetStopTime (Seconds(0.001)+stopTime );
-          // clientApps.Get(2*u+1)->SetStopTime (Seconds(0.001)+stopTime );
+          serverApps.Get(2*u)->SetStopTime (Seconds(0.001)+stopTime );
+          serverApps.Get(2*u+1)->SetStopTime (Seconds(0.001)+stopTime );
+          clientApps.Get(2*u)->SetStopTime (Seconds(0.001)+stopTime );
+          clientApps.Get(2*u+1)->SetStopTime (Seconds(0.001)+stopTime );
           
           
 
