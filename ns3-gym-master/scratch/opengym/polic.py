@@ -60,11 +60,11 @@ def plotForEachtti(plt, x, y):
     plt.pause(0.01)         # 暂停
     plt.ioff()             # 关闭画图的窗口
 
-def getObservation(obs):
+def getObservation(observation, obs):
     numue = 0     
     for j in range((int)(len(obs)/sizeperq)):
         #状态
-        observation = []#环境的观测值，状态observation
+        
         observation.append([obs[sizeperq*j],obs[sizeperq*j+1],obs[sizeperq*j+2],obs[sizeperq*j+3],obs[sizeperq*j+4]])
         if obs[sizeperq*j+1] != 0:
             numue += 1          #统计有效请求数
@@ -124,8 +124,8 @@ try:
             ax.append(stepIdx)
             print("stepIdx: ",stepIdx)
             print("obs: ",obs)
-
-            observation, numue = getObservation(obs)#将ns3的观测值转为gym可用的形式
+            observation = []#环境的观测值，状态observation
+            observation, numue = getObservation(observation, obs)#将ns3的观测值转为gym可用的形式
 
             action_list = []#存储动作的list
             
@@ -143,9 +143,9 @@ try:
                             ss.append(b)
                   
                     ss.extend(matrixOfChanAlloc.copy().reshape(1,nOfenb*nOfchannel).tolist()[0])#请求+信道占用 
-
+                    
                     observation_step = np.array(ss).reshape(nOfenb*nOfchannel+sizeperq*len(observation),1).ravel()#变换为网络输入所要求的维度
- 
+                    print("observation_step: ",observation_step)
                     if observation_step[k*sizeperq+1] > 0:#判断RNTI是否大于0 是否为有效请求
                         action = PG.choose_action1(observation_step,matrixOfChanAlloc,observation[k][0])#选取动作
                         
