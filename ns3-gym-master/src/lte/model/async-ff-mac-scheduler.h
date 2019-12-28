@@ -35,15 +35,15 @@
 // is no CQI for this element
 #define NO_SINR -5000
 
-
+#define MAX_LAYER       2
 #define HARQ_PROC_NUM   8
 #define HARQ_DL_TIMEOUT 11
 
 namespace ns3 {
 
 // typedef std::vector < DlDciListElement_s > DlHarqProcessesDciBuffer_t;
-typedef std::vector < std::vector <struct RlcPduListElement_s> > RlcPduList_t; // vector of the LCs and layers per UE
-typedef std::vector < RlcPduList_t > DlHarqRlcPduListBuffer_t; // vector of the 8 HARQ processes per UE
+typedef std::vector <struct RlcPduListElement_s> RlcPduList_t; // vector of the LCs and layers per UE
+// typedef std::vector < RlcPduList_t > DlHarqRlcPduListBuffer_t; // vector of the 8 HARQ processes per UE
 
 typedef struct DlHarqProcess
 {
@@ -52,8 +52,8 @@ typedef struct DlHarqProcess
   // x>0: process Id equal to `x` transmission count
   uint8_t status[HARQ_PROC_NUM];
   uint8_t timer[HARQ_PROC_NUM];
-  DlDciListElement_s dciBuffer[HARQ_PROC_NUM];
-  RlcPduList_t rlcPduBuffer;
+  DlDciListElement_s dciBuffer[HARQ_PROC_NUM]; ///< DL HARQ process DCI buffer
+  RlcPduList_t rlcPduBuffer[HARQ_PROC_NUM][MAX_LAYER];///< DL HARQ process RLC PDU list buffer, 8harq process, 2layer
 } DlHarqProcess_t;
 
 typedef std::vector < UlDciListElement_s > UlHarqProcessesDciBuffer_t;
@@ -426,8 +426,8 @@ private:
   // std::map <uint16_t, DlHarqProcessesStatus_t> m_dlHarqProcessesStatus; ///< DL HARQ process status
   // std::map <uint16_t, DlHarqProcessesTimer_t> m_dlHarqProcessesTimer; ///< DL HARQ process timer
   // std::map <uint16_t, DlHarqProcessesDciBuffer_t> m_dlHarqProcessesDciBuffer; ///< DL HARQ process DCI buffer
-  std::map <uint16_t, DlHarqRlcPduListBuffer_t>  m_dlHarqProcessesRlcPduListBuffer; ///< DL HARQ process RLC PDU list buffer
-  std::map <uint16_t, DlHarqProcess_t>           m_dlHarqProcesses; ///< DL HARQ processes info
+  // std::map <uint16_t, DlHarqRlcPduListBuffer_t>  m_dlHarqProcessesRlcPduListBuffer; ///< DL HARQ process RLC PDU list buffer
+  std::map <uint16_t, DlHarqProcess_t> m_dlHarqProcesses; ///< DL HARQ processes info
   std::vector <DlInfoListElement_s> m_dlInfoListBuffered; ///< HARQ retx buffered
 
   std::map <uint16_t, uint8_t> m_ulHarqCurrentProcessId; ///< UL HARQ current process ID
