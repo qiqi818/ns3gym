@@ -36,24 +36,34 @@
 #define NO_SINR -5000
 
 
-#define HARQ_PROC_NUM 8
+#define HARQ_PROC_NUM   8
 #define HARQ_DL_TIMEOUT 11
 
 namespace ns3 {
 
-
-typedef std::vector < uint8_t > DlHarqProcessesStatus_t;
+// typedef std::vector < uint8_t > DlHarqProcessesStatus_t;
 typedef std::vector < uint8_t > DlHarqProcessesTimer_t;
 typedef std::vector < DlDciListElement_s > DlHarqProcessesDciBuffer_t;
 typedef std::vector < std::vector <struct RlcPduListElement_s> > RlcPduList_t; // vector of the LCs and layers per UE
 typedef std::vector < RlcPduList_t > DlHarqRlcPduListBuffer_t; // vector of the 8 HARQ processes per UE
 
+typedef struct DlHarqProcess
+{
+  // HARQ status
+  // 0: process Id available
+  // x>0: process Id equal to `x` transmission count
+  uint8_t status[HARQ_PROC_NUM];
+  uint8_t timer;
+  DlDciListElement_s dciBuffer;
+  RlcPduList_t rlcPduBuffer;
+} DlHarqProcess_t;
+
 typedef std::vector < UlDciListElement_s > UlHarqProcessesDciBuffer_t;
 typedef std::vector < uint8_t > UlHarqProcessesStatus_t;
 
 
-/// dacsFlowPerf_t structure
-struct dacsFlowPerf_t
+/// asyncFlowPerf_t structure
+struct asyncFlowPerf_t
 {
   Time flowStart; ///< flow start time
   unsigned long totalBytesTransmitted; ///< total bytes transmitted
@@ -221,12 +231,17 @@ private:
    */
   void DoSchedDlMacBufferReq (const struct FfMacSchedSapProvider::SchedDlMacBufferReqParameters& params);
 
+  void DoSchedRar (std::vector<struct BuildRarListElement_s>& ret);
+
+  void ResetHarq (uint16_t rnti, uint8_t harqId);
+  void DoSchedDlHarq (std::vector<bool> &rbgMap, std::vector<struct BuildDataListElement_s> &ret);
+
   /**
    * \brief Sched DL trigger request
    *
    * \param params FfMacSchedSapProvider::SchedDlTriggerReqParameters
    */
-  void DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::SchedDlTriggerReqParameters& params);
+  void DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::SchedDlTriggerReqParameters &params);
 
   /**
    * \brief Sched DL RACH info request
@@ -349,12 +364,12 @@ private:
   /**
   * Map of UE statistics (per RNTI basis) in downlink
   */
-  std::map <uint16_t, dacsFlowPerf_t> m_flowStatsDl;
+  std::map <uint16_t, asyncFlowPerf_t> m_flowStatsDl;
 
   /**
   * Map of UE statistics (per RNTI basis)
   */
-  std::map <uint16_t, dacsFlowPerf_t> m_flowStatsUl;
+  std::map <uint16_t, asyncFlowPerf_t> m_flowStatsUl;
 
 
 
@@ -410,10 +425,11 @@ private:
   //HARQ status
   // 0: process Id available
   // x>0: process Id equal to `x` transmission count
-  std::map <uint16_t, DlHarqProcessesStatus_t> m_dlHarqProcessesStatus; ///< DL HARQ process status
+  // std::map <uint16_t, DlHarqProcessesStatus_t> m_dlHarqProcessesStatus; ///< DL HARQ process status
   std::map <uint16_t, DlHarqProcessesTimer_t> m_dlHarqProcessesTimer; ///< DL HARQ process timer
   std::map <uint16_t, DlHarqProcessesDciBuffer_t> m_dlHarqProcessesDciBuffer; ///< DL HARQ process DCI buffer
-  std::map <uint16_t, DlHarqRlcPduListBuffer_t> m_dlHarqProcessesRlcPduListBuffer; ///< DL HARQ process RLC PDU list buffer
+  std::map <uint16_t, DlHarqRlcPduListBuffer_t>  m_dlHarqProcessesRlcPduListBuffer; ///< DL HARQ process RLC PDU list buffer
+  std::map <uint16_t, DlHarqProcess_t>           m_dlHarqProcesses; ///< DL HARQ processes info
   std::vector <DlInfoListElement_s> m_dlInfoListBuffered; ///< HARQ retx buffered
 
   std::map <uint16_t, uint8_t> m_ulHarqCurrentProcessId; ///< UL HARQ current process ID
