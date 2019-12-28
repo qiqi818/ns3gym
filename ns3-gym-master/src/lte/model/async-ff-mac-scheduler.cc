@@ -93,7 +93,7 @@ void
 AsyncFfMacScheduler::DoDispose ()
 {
   NS_LOG_FUNCTION (this);
-  m_dlHarqProcessesDciBuffer.clear ();
+  // m_dlHarqProcessesDciBuffer.clear ();
   // m_dlHarqProcessesTimer.clear ();
   m_dlHarqProcessesRlcPduListBuffer.clear ();
   m_dlInfoListBuffered.clear ();
@@ -220,9 +220,9 @@ AsyncFfMacScheduler::DoCschedUeConfigReq (const struct FfMacCschedSapProvider::C
       // DlHarqProcessesTimer_t dlHarqProcessesTimer;
       // dlHarqProcessesTimer.resize (8,0);
       // m_dlHarqProcessesTimer.insert (std::pair <uint16_t, DlHarqProcessesTimer_t> (params.m_rnti, dlHarqProcessesTimer));
-      DlHarqProcessesDciBuffer_t dlHarqdci;
-      dlHarqdci.resize (8);
-      m_dlHarqProcessesDciBuffer.insert (std::pair <uint16_t, DlHarqProcessesDciBuffer_t> (params.m_rnti, dlHarqdci));
+      // DlHarqProcessesDciBuffer_t dlHarqdci;
+      // dlHarqdci.resize (8);
+      // m_dlHarqProcessesDciBuffer.insert (std::pair <uint16_t, DlHarqProcessesDciBuffer_t> (params.m_rnti, dlHarqdci));
       DlHarqRlcPduListBuffer_t dlHarqRlcPdu;
       dlHarqRlcPdu.resize (2);
       dlHarqRlcPdu.at (0).resize (8);
@@ -308,7 +308,7 @@ AsyncFfMacScheduler::DoCschedUeReleaseReq (const struct FfMacCschedSapProvider::
   m_dlHarqProcesses.erase (params.m_rnti);
   // m_dlHarqProcessesStatus.erase  (params.m_rnti);
   // m_dlHarqProcessesTimer.erase (params.m_rnti);
-  m_dlHarqProcessesDciBuffer.erase  (params.m_rnti);
+  // m_dlHarqProcessesDciBuffer.erase  (params.m_rnti);
   m_dlHarqProcessesRlcPduListBuffer.erase  (params.m_rnti);
   m_ulHarqCurrentProcessId.erase  (params.m_rnti);
   m_ulHarqProcessesStatus.erase  (params.m_rnti);
@@ -691,12 +691,11 @@ AsyncFfMacScheduler::DoSchedDlHarq (std::vector<bool> &rbgMap,
     // need retx
     // retrieve HARQ process information
     NS_LOG_INFO (this << " HARQ retx RNTI " << rnti << " harqId " << (uint16_t) harqId);
-    if (m_dlHarqProcessesDciBuffer.count (rnti) == 0) {
+    if (m_dlHarqProcesses.count (rnti) == 0) {
       NS_FATAL_ERROR ("No info find in HARQ buffer for UE " << rnti);
     }
 
-    DlHarqProcessesDciBuffer_t &dhdb = m_dlHarqProcessesDciBuffer[rnti];
-    DlDciListElement_s dci = dhdb[harqId];
+    DlDciListElement_s dci = m_dlHarqProcesses[rnti].dciBuffer[harqId];
     int rv = dci.m_rv[0];
     if (dci.m_rv.size () > 1) {
       rv = (dci.m_rv[0] > dci.m_rv[1]) ? dci.m_rv[0] : dci.m_rv[1];
@@ -810,7 +809,7 @@ AsyncFfMacScheduler::DoSchedDlHarq (std::vector<bool> &rbgMap,
           dci.m_rv.at (j)++;
           // DlHarqProcessesDciBuffer_t &dhdb = m_dlHarqProcessesDciBuffer[rnti];
           // DlDciListElement_s dci = dhdb[harqId];
-          m_dlHarqProcessesDciBuffer[rnti][harqId].m_rv[j]++;
+          m_dlHarqProcesses[rnti].dciBuffer[harqId].m_rv[j]++;
           NS_LOG_INFO (this << " layer " << (uint16_t) j << " RV "
                             << (uint16_t) dci.m_rv.at (j));
         }
@@ -862,7 +861,7 @@ AsyncFfMacScheduler::DoSchedDlHarq (std::vector<bool> &rbgMap,
 
     newEl.m_rnti = rnti;
     newEl.m_dci = dci;
-    m_dlHarqProcessesDciBuffer[rnti][harqId].m_rv = dci.m_rv;
+    m_dlHarqProcesses[rnti].dciBuffer[harqId].m_rv = dci.m_rv;
 
     // refresh timer
     m_dlHarqProcesses[rnti].timer[harqId] = 0;
@@ -1154,16 +1153,11 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     if (m_harqOn == true)
     {
       // store DCI for HARQ
-      std::map <uint16_t, DlHarqProcessesDciBuffer_t>::iterator itDci = m_dlHarqProcessesDciBuffer.find (newEl.m_rnti);
-      if (itDci == m_dlHarqProcessesDciBuffer.end ())
+      if (m_dlHarqProcesses.count(newEl.m_rnti) == 0)
       {
         NS_FATAL_ERROR ("Unable to find RNTI entry in DCI HARQ buffer for RNTI " << newEl.m_rnti);
       }
-      (*itDci).second.at (newDci.m_harqProcess) = newDci;
-      // refresh timer
-      if(m_dlHarqProcesses.count(newEl.m_rnti) == 0) {
-        NS_FATAL_ERROR ("Unable to find HARQ timer for RNTI " << (uint16_t)newEl.m_rnti);
-      }
+      m_dlHarqProcesses[newEl.m_rnti].dciBuffer[newDci.m_harqProcess] = newDci;
       m_dlHarqProcesses[newEl.m_rnti].timer[newDci.m_harqProcess] = 0;
     }
 
