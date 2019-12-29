@@ -29,6 +29,7 @@
 #include <ns3/boolean.h>
 #include <cfloat>
 #include <set>
+#include <numeric>
 #include <ns3/async-ff-mac-scheduler.h>
 #include "string.h"
 using namespace std;
@@ -282,24 +283,22 @@ void
 AsyncFfMacScheduler::DoCschedLcReleaseReq (const struct FfMacCschedSapProvider::CschedLcReleaseReqParameters& params)
 {
   NS_LOG_FUNCTION (this);
-  for (uint16_t i = 0; i < params.m_logicalChannelIdentity.size (); i++)
-    {
-      std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it = m_rlcBufferReq.begin ();
-      std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator temp;
-      while (it!=m_rlcBufferReq.end ())
-        {
-          if (((*it).first.m_rnti == params.m_rnti) && ((*it).first.m_lcId == params.m_logicalChannelIdentity.at (i)))
-            {
-              temp = it;
-              it++;
-              m_rlcBufferReq.erase (temp);
-            }
-          else
-            {
-              it++;
-            }
-        }
+  for (uint16_t i = 0; i < params.m_logicalChannelIdentity.size (); i++) {
+    std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it = m_rlcBufferReq.begin ();
+    std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator temp;
+    while (it!=m_rlcBufferReq.end ()) {
+      if (((*it).first.m_rnti == params.m_rnti) && ((*it).first.m_lcId == params.m_logicalChannelIdentity.at (i)))
+      {
+        temp = it;
+        it++;
+        m_rlcBufferReq.erase (temp);
+      }
+      else
+      {
+        it++;
+      }
     }
+  }
   return;
 }
 
@@ -454,20 +453,21 @@ AsyncFfMacScheduler::UpdateHarqProcessId (uint16_t rnti)
   if (m_dlHarqProcesses.count (rnti) == 0) {
     NS_FATAL_ERROR ("No Process Id Statusfound for this RNTI " << rnti);
   }
-  uint8_t i = m_dlHarqProcesses[rnti].currentProcId;
+  DlHarqProcess_t& proc = m_dlHarqProcesses[rnti];
+  uint8_t i = proc.currentProcId;
   do {
     i = (i + 1) % HARQ_PROC_NUM;
-  } while((m_dlHarqProcesses[rnti].status[i] != 0)&&(i != m_dlHarqProcesses[rnti].currentProcId));
+  } while((proc.status[i] != 0)&&(i != proc.currentProcId));
 
-  if (m_dlHarqProcesses[rnti].status[i] == 0) {
-    m_dlHarqProcesses[rnti].currentProcId = i;
-    m_dlHarqProcesses[rnti].status[i] = 1;
+  if (proc.status[i] == 0) {
+    proc.currentProcId = i;
+    proc.status[i] = 1;
   }
   else {
     NS_FATAL_ERROR ("No HARQ process available for RNTI " << rnti << " check before update with HarqProcessAvailability");
   }
 
-  return m_dlHarqProcesses[rnti].currentProcId;
+  return proc.currentProcId;
 }
 
 
@@ -480,17 +480,17 @@ AsyncFfMacScheduler::RefreshHarqProcesses ()
   for (it = m_dlHarqProcesses.begin (); it != m_dlHarqProcesses.end (); it++)
   {
     uint16_t rnti = (*it).first;
-    uint8_t* timers = (*it).second.timer;
+    DlHarqProcess_t& proc = (*it).second;
     for (uint16_t i = 0; i < HARQ_PROC_NUM; i++)
     {
-      if (timers[i] == HARQ_DL_TIMEOUT) {
+      if (proc.timer[i] == HARQ_DL_TIMEOUT) {
         // reset HARQ process
         NS_LOG_DEBUG (this << " Reset HARQ proc " << i << " for RNTI " << rnti);
-        (*it).second.status[i] = 0;
-        timers[i] = 0;
+        proc.status[i] = 0;
+        proc.timer[i] = 0;
       }
       else {
-        timers[i]++;
+        proc.timer[i]++;
       }
     }
   }
@@ -630,13 +630,15 @@ AsyncFfMacScheduler::ResetHarq(uint16_t rnti, uint8_t harqId)
     return;
   }
   m_dlHarqProcesses[rnti].status[harqId] = 0;
+  m_dlHarqProcesses[rnti].timer[harqId] = 0;
   for (uint16_t k = 0; k < MAX_LAYER; k++)
   {
     m_dlHarqProcesses[rnti].rlcPduBuffer[harqId][k].clear();
   }
 }
 
-static std::vector<uint16_t> Bitmap2Alloc(uint32_t bitmap)
+std::vector<uint16_t> 
+AsyncFfMacScheduler::Bitmap2Alloc(uint32_t bitmap)
 {
   std::vector<uint16_t> dciRbg;
   uint32_t mask = 0x1;
@@ -847,6 +849,129 @@ AsyncFfMacScheduler::DoSchedDlHarq (std::vector<bool> &rbgMap,
   m_dlInfoListBuffered = dlInfoListUntxed;
 }
 
+std::vector <uint8_t>
+AsyncFfMacScheduler::GetWorstCqi(uint16_t rnti, const std::vector<uint16_t>& alloc)
+{
+  int nLayer = TransmissionModesLayers::TxMode2LayerNum(m_uesTxMode[rnti]);
+  std::vector <uint8_t> worstCqi(nLayer, 15);
+
+  if(m_a30CqiRxed.count(rnti) == 0) {
+    for (uint8_t j = 0; j < nLayer; j++) {
+      worstCqi[j] = 1; // try with lowest MCS in RBG with no info on channel
+    }
+    return worstCqi;
+  }
+
+  for (uint16_t k = 0; k < alloc.size (); k++)
+  {
+    uint16_t rbg = alloc[k];
+    if (m_a30CqiRxed[rnti].m_higherLayerSelected.size () > rbg) {
+      NS_LOG_INFO (this << " RBG " << rbg << " CQI " << (uint16_t)m_a30CqiRxed[rnti].m_higherLayerSelected[rbg].m_sbCqi[0]);
+      for (uint8_t j = 0; j < nLayer; j++) {
+        if (m_a30CqiRxed[rnti].m_higherLayerSelected[rbg].m_sbCqi.size () > j) {
+          if ((m_a30CqiRxed[rnti].m_higherLayerSelected[rbg].m_sbCqi[j]) < worstCqi[j])
+          {
+            worstCqi[j] = (m_a30CqiRxed[rnti].m_higherLayerSelected[rbg].m_sbCqi[j]);
+          }
+        }
+        else {
+          // no CQI for this layer of this suband -> worst one
+          worstCqi[j] = 1;
+        }
+      }
+    }
+    else {
+      for (uint8_t j = 0; j < nLayer; j++) {
+        worstCqi[j] = 1; // try with lowest MCS in RBG with no info on channel
+      }
+    }
+  }
+
+  return worstCqi;
+}
+
+BuildDataListElement_s
+AsyncFfMacScheduler::BuildFromAllocation(uint16_t rnti, const std::vector<uint16_t>& alloc)
+{
+  int rbgSize = GetRbgSize (m_cschedCellConfig.m_dlBandwidth);
+  std::map <uint16_t,uint8_t>::iterator itTxMode;
+  itTxMode = m_uesTxMode.find (rnti);
+  if (itTxMode == m_uesTxMode.end ()) {
+    NS_FATAL_ERROR ("No Transmission Mode info on user " << rnti);
+  }
+  int nLayer = TransmissionModesLayers::TxMode2LayerNum((*itTxMode).second);
+
+  BuildDataListElement_s newEl;
+  newEl.m_rnti = rnti;
+  
+  // create the DlDciListElement_s
+  DlDciListElement_s newDci;
+  newDci.m_rnti = rnti;
+  newDci.m_harqProcess = UpdateHarqProcessId (rnti);
+  newDci.m_resAlloc = 0;  // only allocation type 0 at this stage
+  newDci.m_rbBitmap = Alloc2Bitmap(alloc); // (32 bit bitmap see 7.1.6 of 36.213)
+  newDci.m_tpc = m_ffrSapProvider->GetTpc (rnti);
+  for (uint8_t j = 0; j < nLayer; j++) {
+    newDci.m_ndi.push_back (1);
+    newDci.m_rv.push_back (0);
+  }
+
+  // qinhao: following code for what ?????
+  uint16_t lcActives = LcActivePerFlow (rnti);
+  NS_LOG_INFO (this << "Allocate user " << newEl.m_rnti << " rbg " << lcActives);
+  if (lcActives == 0) {
+    // Set to max value, to avoid divide by 0 below
+    lcActives = (uint16_t)65535; // UINT16_MAX;
+  }
+
+  std::vector <uint8_t> worstCqi = GetWorstCqi(rnti, alloc);
+  for (uint8_t j = 0; j < nLayer; j++)
+  {
+    NS_LOG_INFO (this << " Layer " << (uint16_t)j << " CQI selected " << (uint16_t)worstCqi[j]);
+    newDci.m_mcs.push_back (m_amc->GetMcsFromCqi (worstCqi[j]));
+    int tbSize = (m_amc->GetDlTbSizeFromMcs (newDci.m_mcs[j], alloc.size() * rbgSize) / 8); // (size of TB in bytes according to table 7.1.7.2.1-1 of 36.213)
+    newDci.m_tbsSize.push_back (tbSize);
+    NS_LOG_INFO (this << " Layer " << (uint16_t)j << " MCS selected" << m_amc->GetMcsFromCqi(worstCqi[j]));
+  }
+
+  // create the rlc PDUs -> equally divide resources among actives LCs
+  std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator itBufReq;
+  for (itBufReq = m_rlcBufferReq.begin (); itBufReq != m_rlcBufferReq.end (); itBufReq++)
+  {
+    if ((*itBufReq).first.m_rnti > rnti) break;
+    if ((*itBufReq).first.m_rnti != rnti) continue;
+    const FfMacSchedSapProvider::SchedDlRlcBufferReqParameters& req = (*itBufReq).second;
+    if((req.m_rlcTransmissionQueueSize > 0) || (req.m_rlcRetransmissionQueueSize > 0) || (req.m_rlcStatusPduSize > 0))
+    {
+      std::vector <struct RlcPduListElement_s> newRlcPduLe;
+      for (uint8_t j = 0; j < nLayer; j++) {
+        RlcPduListElement_s newRlcEl;
+        newRlcEl.m_logicalChannelIdentity = (*itBufReq).first.m_lcId;
+        newRlcEl.m_size = newDci.m_tbsSize.at (j) / lcActives;
+        NS_LOG_INFO (this << " LCID " << (uint32_t) newRlcEl.m_logicalChannelIdentity << " size " << newRlcEl.m_size << " layer " << (uint16_t)j);
+        newRlcPduLe.push_back (newRlcEl);
+        UpdateDlRlcBufferInfo (newDci.m_rnti, newRlcEl.m_logicalChannelIdentity, newRlcEl.m_size);
+        if (m_harqOn == true) {
+          // store RLC PDU list for HARQ
+          m_dlHarqProcesses[rnti].rlcPduBuffer[newDci.m_harqProcess][j].push_back (newRlcEl);
+        }
+      }
+      newEl.m_rlcPduList.push_back (newRlcPduLe);
+    }
+  }
+  newEl.m_dci = newDci;
+  if (m_harqOn == true) {
+    // store DCI for HARQ
+    if (m_dlHarqProcesses.count(rnti) == 0) {
+      NS_FATAL_ERROR("Unable to find RNTI entry in DCI HARQ buffer for RNTI " << rnti);
+    }
+    m_dlHarqProcesses[rnti].dciBuffer[newDci.m_harqProcess] = newDci;
+    m_dlHarqProcesses[rnti].timer[newDci.m_harqProcess] = 0;
+  }
+  // ...more parameters -> ignored in this version
+  return newEl;
+}
+
 void
 AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::SchedDlTriggerReqParameters& params)
 {
@@ -861,13 +986,11 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
   RefreshDlCqiMaps ();
 
   int rbgSize = GetRbgSize (m_cschedCellConfig.m_dlBandwidth);
-  std::map <uint16_t, std::vector <uint16_t> > allocationMap; // RBs map per RNTI
-  std::set <uint16_t> rntiAllocated;
   std::vector<bool> rbgMap = m_ffrSapProvider->GetAvailableDlRbg (); // global RBGs map
 
   int rbgNum = m_cschedCellConfig.m_dlBandwidth / rbgSize;
   NS_ASSERT_MSG ((size_t)rbgNum == rbgMap.size (), "rbgNum == rbgMap.size()++++++++++++++++++++++++++");
-  //   update UL HARQ proc id
+  // update UL HARQ proc id
   std::map <uint16_t, uint8_t>::iterator itProcId;
   for (itProcId = m_ulHarqCurrentProcessId.begin (); itProcId != m_ulHarqCurrentProcessId.end (); itProcId++)
   {
@@ -912,9 +1035,14 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
 
   //----------------------------------------------------------------------------------------------------------
   //改写的调度执行分配结果的过程，将传递进来的保存有动作（资源分配信息的）参数m_test转化为调度信息执行下去
-            
+
+  std::set<uint16_t> rntiAllocated; // save all the rnti scheduled for retx
+  for(size_t ii = 0; ii < ret.m_buildDataList.size(); ii++) {
+    rntiAllocated.insert(ret.m_buildDataList[ii].m_rnti);
+  }
+
+  std::map <uint16_t, std::vector <uint16_t> > allocationMap; // RBs map per RNTI
   vector<string> vs = split2(m_test," ");//分割字符串
-    
   //每两个为一组(RNTIi,资源编号i)进行执行
   for(uint16_t i = 0; i < vs.size();i+=2)
   {
@@ -928,8 +1056,7 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
       continue;
     }
     
-    std::set <uint16_t>::iterator itRnti = rntiAllocated.find (rnti);
-    if ((itRnti != rntiAllocated.end ())||(!HarqProcessAvailability (rnti))) { //qinhao 
+    if ((rntiAllocated.count(rnti) > 0)|| (!HarqProcessAvailability (rnti))) { //qinhao 
       cout << "CellId为 " << stoi(m_cellid)+1 << " ,RNTI为 " << rnti << " 的UE重传" << endl;
       continue;
     }
@@ -937,10 +1064,13 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     if (LcActivePerFlow (rnti) > 0) {
       rbgMap[rbg] = true;
       cout << "CellId为 " << stoi(m_cellid)+1 << " ,RNTI为 " << rnti << " 的UE分配到rbg编号 " << rbg << endl;
+#if 1      
+      allocationMap[rnti].push_back(rbg);
+#else      
       std::map <uint16_t, std::vector <uint16_t> >::iterator itMap;
       //查找allocationMap中是否已有RNTI为rnti的ue的调度信息itMap
       itMap = allocationMap.find (rnti);
-      if (itMap == allocationMap.end ()) {
+      if(allocationMap.count (rnti) == 0) {
         //若无，则创建它的调度信息itMap
         // insert new element
         std::vector <uint16_t> tempMap;
@@ -952,20 +1082,14 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
         //若已有RNTI为stoi(vs[i])的ue的调度信息，则直接将追加的资源编号push到tempMap中
         (*itMap).second.push_back (rbg);
       }            
+#endif      
     }
   }
   cout << endl;
             
   //----------------------------------------------------------------------------------------------------------------
 
-
-  // reset TTI stats of users
-  std::map <uint16_t, asyncFlowPerf_t>::iterator itStats;
-  for (itStats = m_flowStatsDl.begin (); itStats != m_flowStatsDl.end (); itStats++)
-  {
-    (*itStats).second.lastTtiBytesTrasmitted = 0;
-  }
-
+  // 根据allocationMap生成调度结果ret.m_buildDataList
   // generate the transmission opportunities by grouping the RBGs of the same RNTI and
   // creating the correspondent DCIs
   std::map <uint16_t, std::vector <uint16_t> >::iterator itMap = allocationMap.begin ();
@@ -975,138 +1099,20 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     uint16_t rnti = (*itMap).first;
     const std::vector<uint16_t>& alloc = (*itMap).second;
 
-    BuildDataListElement_s newEl;
-    newEl.m_rnti = rnti;
-    // create the DlDciListElement_s
-    DlDciListElement_s newDci;
-    newDci.m_rnti = rnti;
-    newDci.m_harqProcess = UpdateHarqProcessId (rnti);
-    uint16_t lcActives = LcActivePerFlow (rnti);
-    NS_LOG_INFO (this << "Allocate user " << newEl.m_rnti << " rbg " << lcActives);
-    if (lcActives == 0) {
-      // Set to max value, to avoid divide by 0 below
-      lcActives = (uint16_t)65535; // UINT16_MAX;
-    }
-
-    std::map <uint16_t,uint8_t>::iterator itTxMode;
-    itTxMode = m_uesTxMode.find (rnti);
-    if (itTxMode == m_uesTxMode.end ()) {
-      NS_FATAL_ERROR ("No Transmission Mode info on user " << rnti);
-    }
-    int nLayer = TransmissionModesLayers::TxMode2LayerNum((*itTxMode).second);
-    std::vector <uint8_t> worstCqi (2, 15);
-    std::map <uint16_t,SbMeasResult_s>::iterator itCqi;
-    itCqi = m_a30CqiRxed.find (rnti);
-    if(m_a30CqiRxed.count(rnti) == 0) {
-      for (uint8_t j = 0; j < nLayer; j++) {
-        worstCqi[j] = 1; // try with lowest MCS in RBG with no info on channel
-      }
-    }
-    else {
-      for (uint16_t k = 0; k < alloc.size (); k++)
-      {
-        uint16_t rbg = alloc[k];
-        if (m_a30CqiRxed[rnti].m_higherLayerSelected.size () > rbg) {
-          NS_LOG_INFO (this << " RBG " << rbg << " CQI " << (uint16_t)m_a30CqiRxed[rnti].m_higherLayerSelected[rbg].m_sbCqi[0]);
-          for (uint8_t j = 0; j < nLayer; j++) {
-            if (m_a30CqiRxed[rnti].m_higherLayerSelected[rbg].m_sbCqi.size () > j) {
-              if ((m_a30CqiRxed[rnti].m_higherLayerSelected[rbg].m_sbCqi.at (j)) < worstCqi.at (j))
-              {
-                worstCqi[j] = (m_a30CqiRxed[rnti].m_higherLayerSelected[rbg].m_sbCqi[j]);
-              }
-            }
-            else {
-              // no CQI for this layer of this suband -> worst one
-              worstCqi[j] = 1;
-            }
-          }
-        }
-        else {
-          for (uint8_t j = 0; j < nLayer; j++)
-          {
-            worstCqi[j] = 1; // try with lowest MCS in RBG with no info on channel
-          }
-        }
-      }
-    }
-
-    uint32_t bytesTxed = 0;
-    for (uint8_t j = 0; j < nLayer; j++)
-    {
-      NS_LOG_INFO (this << " Layer " << (uint16_t)j << " CQI selected " << (uint16_t)worstCqi[j]);
-      newDci.m_mcs.push_back (m_amc->GetMcsFromCqi (worstCqi[j]));
-      int tbSize = (m_amc->GetDlTbSizeFromMcs (newDci.m_mcs[j], alloc.size() * rbgSize) / 8); // (size of TB in bytes according to table 7.1.7.2.1-1 of 36.213)
-      newDci.m_tbsSize.push_back (tbSize);
-      NS_LOG_INFO (this << " Layer " << (uint16_t)j << " MCS selected" << m_amc->GetMcsFromCqi(worstCqi[j]));
-      bytesTxed += tbSize;
-    }
-    newDci.m_resAlloc = 0;  // only allocation type 0 at this stage
-    newDci.m_rbBitmap = Alloc2Bitmap(alloc); // (32 bit bitmap see 7.1.6 of 36.213)
-
-    // create the rlc PDUs -> equally divide resources among actives LCs
-    std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator itBufReq;
-    for (itBufReq = m_rlcBufferReq.begin (); itBufReq != m_rlcBufferReq.end (); itBufReq++)
-    {
-      if ((*itBufReq).first.m_rnti > rnti) break;
-      if ((*itBufReq).first.m_rnti != rnti) continue;
-      const FfMacSchedSapProvider::SchedDlRlcBufferReqParameters& req = (*itBufReq).second;
-      if((req.m_rlcTransmissionQueueSize > 0) || (req.m_rlcRetransmissionQueueSize > 0) || (req.m_rlcStatusPduSize > 0))
-      {
-        std::vector <struct RlcPduListElement_s> newRlcPduLe;
-        for (uint8_t j = 0; j < nLayer; j++) {
-          RlcPduListElement_s newRlcEl;
-          newRlcEl.m_logicalChannelIdentity = (*itBufReq).first.m_lcId;
-          newRlcEl.m_size = newDci.m_tbsSize.at (j) / lcActives;
-          NS_LOG_INFO (this << " LCID " << (uint32_t) newRlcEl.m_logicalChannelIdentity << " size " << newRlcEl.m_size << " layer " << (uint16_t)j);
-          newRlcPduLe.push_back (newRlcEl);
-          UpdateDlRlcBufferInfo (newDci.m_rnti, newRlcEl.m_logicalChannelIdentity, newRlcEl.m_size);
-          if (m_harqOn == true)
-          {
-            // store RLC PDU list for HARQ
-            m_dlHarqProcesses[rnti].rlcPduBuffer[newDci.m_harqProcess][j].push_back (newRlcEl);
-          }
-        }
-        newEl.m_rlcPduList.push_back (newRlcPduLe);
-      }
-    }
-
-    for (uint8_t j = 0; j < nLayer; j++) {
-      newDci.m_ndi.push_back (1);
-      newDci.m_rv.push_back (0);
-    }
-
-    newDci.m_tpc = m_ffrSapProvider->GetTpc (rnti);
-    newEl.m_dci = newDci;
-    if (m_harqOn == true)
-    {
-      // store DCI for HARQ
-      if (m_dlHarqProcesses.count(newEl.m_rnti) == 0)
-      {
-        NS_FATAL_ERROR ("Unable to find RNTI entry in DCI HARQ buffer for RNTI " << newEl.m_rnti);
-      }
-      m_dlHarqProcesses[newEl.m_rnti].dciBuffer[newDci.m_harqProcess] = newDci;
-      m_dlHarqProcesses[newEl.m_rnti].timer[newDci.m_harqProcess] = 0;
-    }
-
-    // ...more parameters -> ignored in this version
-
+    BuildDataListElement_s newEl = BuildFromAllocation(rnti, alloc);
     ret.m_buildDataList.push_back (newEl);
+
+    uint32_t bytesTxed = std::accumulate(newEl.m_dci.m_tbsSize.begin(), newEl.m_dci.m_tbsSize.end(), 0);
     // update UE stats
-    if (m_flowStatsDl.count(rnti) > 0)
-    {
-      m_flowStatsDl[rnti].lastTtiBytesTrasmitted = bytesTxed;
-      NS_LOG_INFO (this << " UE total bytes txed " << bytesTxed);
-    }
-    else
-    {
-      NS_FATAL_ERROR (this << " No Stats for this allocated UE");
-    }
+    m_flowStatsDl[rnti].lastTtiBytesTrasmitted = bytesTxed;
+    NS_LOG_INFO (this << " UE total bytes txed " << bytesTxed);
     itMap++;
   } // end while allocation
   ret.m_nrOfPdcchOfdmSymbols = 1;   /// \todo check correct value according the DCIs txed
 
   // update UEs stats
   NS_LOG_INFO (this << " Update UEs statistics");
+  std::map <uint16_t, asyncFlowPerf_t>::iterator itStats;
   for (itStats = m_flowStatsDl.begin (); itStats != m_flowStatsDl.end (); itStats++)
   {
     (*itStats).second.totalBytesTransmitted += (*itStats).second.lastTtiBytesTrasmitted;
@@ -1128,10 +1134,7 @@ void
 AsyncFfMacScheduler::DoSchedDlRachInfoReq (const struct FfMacSchedSapProvider::SchedDlRachInfoReqParameters& params)
 {
   NS_LOG_FUNCTION (this);
-
   m_rachList = params.m_rachList;
-
-  return;
 }
 
 void

@@ -231,7 +231,12 @@ private:
   void DoSchedDlMacBufferReq (const struct FfMacSchedSapProvider::SchedDlMacBufferReqParameters& params);
 
   void DoSchedRar (std::vector<struct BuildRarListElement_s>& ret);
+
+  std::vector<uint16_t> Bitmap2Alloc(uint32_t bitmap);
   uint32_t Alloc2Bitmap(const std::vector<uint16_t>& alloc);
+  std::vector <uint8_t> GetWorstCqi(uint16_t rnti, const std::vector<uint16_t>& alloc);
+  BuildDataListElement_s
+  BuildFromAllocation(uint16_t rnti, const std::vector<uint16_t>& alloc);
 
   void ResetHarq (uint16_t rnti, uint8_t harqId);
   void DoSchedDlHarq (std::vector<bool> &rbgMap, std::vector<struct BuildDataListElement_s> &ret);
