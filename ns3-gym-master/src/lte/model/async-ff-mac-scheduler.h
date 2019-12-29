@@ -42,18 +42,19 @@
 namespace ns3 {
 
 // typedef std::vector < DlDciListElement_s > DlHarqProcessesDciBuffer_t;
-typedef std::vector <struct RlcPduListElement_s> RlcPduList_t; // vector of the LCs and layers per UE
+typedef std::vector <struct RlcPduListElement_s> RlcPduList1_t; // vector of the LCs and layers per UE
 // typedef std::vector < RlcPduList_t > DlHarqRlcPduListBuffer_t; // vector of the 8 HARQ processes per UE
 
 typedef struct DlHarqProcess
 {
+  uint8_t currentProcId; ///< DL HARQ current process ID
   // HARQ status
   // 0: process Id available
   // x>0: process Id equal to `x` transmission count
   uint8_t status[HARQ_PROC_NUM];
   uint8_t timer[HARQ_PROC_NUM];
   DlDciListElement_s dciBuffer[HARQ_PROC_NUM]; ///< DL HARQ process DCI buffer
-  RlcPduList_t rlcPduBuffer[HARQ_PROC_NUM][MAX_LAYER];///< DL HARQ process RLC PDU list buffer, 8harq process, 2layer
+  RlcPduList1_t rlcPduBuffer[HARQ_PROC_NUM][MAX_LAYER];///< DL HARQ process RLC PDU list buffer, 8harq process, 2layer
 } DlHarqProcess_t;
 
 typedef std::vector < UlDciListElement_s > UlHarqProcessesDciBuffer_t;
@@ -230,6 +231,7 @@ private:
   void DoSchedDlMacBufferReq (const struct FfMacSchedSapProvider::SchedDlMacBufferReqParameters& params);
 
   void DoSchedRar (std::vector<struct BuildRarListElement_s>& ret);
+  uint32_t Alloc2Bitmap(const std::vector<uint16_t>& alloc);
 
   void ResetHarq (uint16_t rnti, uint8_t harqId);
   void DoSchedDlHarq (std::vector<bool> &rbgMap, std::vector<struct BuildDataListElement_s> &ret);
@@ -419,7 +421,7 @@ private:
   * m_harqOn when false inhibit the HARQ mechanisms (by default active)
   */
   bool m_harqOn;
-  std::map <uint16_t, uint8_t> m_dlHarqCurrentProcessId; ///< DL HARQ current process ID
+  // std::map <uint16_t, uint8_t> m_dlHarqCurrentProcessId; ///< DL HARQ current process ID
   //HARQ status
   // 0: process Id available
   // x>0: process Id equal to `x` transmission count
