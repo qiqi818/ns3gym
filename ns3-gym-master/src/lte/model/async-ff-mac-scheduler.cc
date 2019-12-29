@@ -1032,13 +1032,21 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     }
     return;
   }
+  m_ret = ret;
+  // 这里先返回，等获得RLC部分的调度结果后再统一执行
 
+  Simulator::ScheduleNow(&AsyncFfMacScheduler::ExecuteDlSchedResult, this);
+}
+
+void  
+AsyncFfMacScheduler::ExecuteDlSchedResult()
+{
+  cout << "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&****************************" << endl;
   //----------------------------------------------------------------------------------------------------------
   //改写的调度执行分配结果的过程，将传递进来的保存有动作（资源分配信息的）参数m_test转化为调度信息执行下去
-
   std::set<uint16_t> rntiAllocated; // save all the rnti scheduled for retx
-  for(size_t ii = 0; ii < ret.m_buildDataList.size(); ii++) {
-    rntiAllocated.insert(ret.m_buildDataList[ii].m_rnti);
+  for(size_t ii = 0; ii < m_ret.m_buildDataList.size(); ii++) {
+    rntiAllocated.insert(m_ret.m_buildDataList[ii].m_rnti);
   }
 
   std::map <uint16_t, std::vector <uint16_t> > allocationMap; // RBs map per RNTI
@@ -1062,7 +1070,6 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     }
       
     if (LcActivePerFlow (rnti) > 0) {
-      rbgMap[rbg] = true;
       cout << "CellId为 " << stoi(m_cellid)+1 << " ,RNTI为 " << rnti << " 的UE分配到rbg编号 " << rbg << endl;
 #if 1      
       allocationMap[rnti].push_back(rbg);
@@ -1100,7 +1107,7 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     const std::vector<uint16_t>& alloc = (*itMap).second;
 
     BuildDataListElement_s newEl = BuildFromAllocation(rnti, alloc);
-    ret.m_buildDataList.push_back (newEl);
+    m_ret.m_buildDataList.push_back (newEl);
 
     uint32_t bytesTxed = std::accumulate(newEl.m_dci.m_tbsSize.begin(), newEl.m_dci.m_tbsSize.end(), 0);
     // update UE stats
@@ -1108,7 +1115,7 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     NS_LOG_INFO (this << " UE total bytes txed " << bytesTxed);
     itMap++;
   } // end while allocation
-  ret.m_nrOfPdcchOfdmSymbols = 1;   /// \todo check correct value according the DCIs txed
+  m_ret.m_nrOfPdcchOfdmSymbols = 1;   /// \todo check correct value according the DCIs txed
 
   // update UEs stats
   NS_LOG_INFO (this << " Update UEs statistics");
@@ -1123,11 +1130,7 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     (*itStats).second.lastTtiBytesTrasmitted = 0;
   }
 
-  m_schedSapUser->SchedDlConfigInd (ret);
-  m_ret_p2 = m_ret_p;
-  m_ret_p = m_ret;
-  m_ret = ret;
-  return;
+  m_schedSapUser->SchedDlConfigInd (m_ret);
 }
 
 void

@@ -163,7 +163,6 @@ public:
   */
   std::map <uint16_t,uint32_t> m_a30CqiTimers;
 
-
   FfMacSchedSapUser::SchedDlConfigIndParameters m_ret;
   FfMacSchedSapUser::SchedDlConfigIndParameters m_ret_p;
   FfMacSchedSapUser::SchedDlConfigIndParameters m_ret_p2;
@@ -247,6 +246,8 @@ private:
    * \param params FfMacSchedSapProvider::SchedDlTriggerReqParameters
    */
   void DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::SchedDlTriggerReqParameters &params);
+
+  void ExecuteDlSchedResult();
 
   /**
    * \brief Sched DL RACH info request
