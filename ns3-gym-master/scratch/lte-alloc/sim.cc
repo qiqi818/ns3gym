@@ -99,6 +99,7 @@ FlowMonitorHelper flowmon;
 Ptr<FlowMonitor> monitor;
 NetDeviceContainer enbDevs;
 NetDeviceContainer ueDevs;
+Ptr<OpenGymInterface> openGym;
 NS_LOG_COMPONENT_DEFINE ("OpenGym");
 
 /*
@@ -739,13 +740,47 @@ void sinr()
 /*
 ns3中的类似gym中的step函数
  */
-void
-ScheduleNextStateRead (double envStepTime, Ptr<OpenGymInterface> openGym)
+// void
+// ScheduleNextStateRead (double envStepTime, Ptr<OpenGymInterface> openGym)
+// {
+//   Simulator::Schedule (NanoSeconds (1), &rlc);//通过Schedule事件调度机制获取rlcbuffer
+//   Simulator::Schedule (NanoSeconds (999999), &sinr);//通过Schedule事件调度机制在每个tti结束时获取sinr
+//   Simulator::Schedule (Seconds(envStepTime), &ScheduleNextStateRead, envStepTime, openGym);
+//   openGym->NotifyCurrentState ();
+// }
+
+struct UeReqItem {
+  uint16_t cell_id;
+  FfMacSchedSapProvider::SchedDlRlcBufferReqParameters req;
+};
+
+static std::set<uint16_t> g_criedEnb;
+static std::vector<struct UeReqItem> g_arrReqs;
+static void OnSchedDlNewTx(uint16_t enb_id, const std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>& req)
 {
-  Simulator::Schedule (NanoSeconds (1), &rlc);//通过Schedule事件调度机制获取rlcbuffer
-  Simulator::Schedule (NanoSeconds (999999), &sinr);//通过Schedule事件调度机制在每个tti结束时获取sinr
-  Simulator::Schedule (Seconds(envStepTime), &ScheduleNextStateRead, envStepTime, openGym);
-  openGym->NotifyCurrentState ();
+  cout << "@@@@@@@@@@@@@@@@@@@@@@@ OnSchedDlNewTx " << enb_id << endl;
+  if(g_criedEnb.count(enb_id) > 0)  {
+    cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!should not happen, Something wrong!!\n";
+    return;
+  }
+  g_criedEnb.insert(enb_id);
+  // std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator
+  for (auto it = req.begin (); it != req.end (); it++)
+  {
+    struct UeReqItem uri;
+    uri.cell_id = enb_id;
+    uri.req = it->second;
+    g_arrReqs.push_back(uri);
+  }
+
+  if(g_criedEnb.size() == enbDevs.GetN()) {
+    // all the enb claimed their request
+    Simulator::Schedule (NanoSeconds (1), &rlc);//通过Schedule事件调度机制获取rlcbuffer
+    Simulator::Schedule (NanoSeconds (999999), &sinr);//通过Schedule事件调度机制在每个tti结束时获取sinr
+    openGym->NotifyCurrentState (); // 启动算法获取action
+    g_criedEnb.clear();
+    g_arrReqs.clear();
+  }
 }
 
 int
@@ -754,7 +789,7 @@ main (int argc, char *argv[])
   // Parameters of the scenario
   uint32_t simSeed = 15;
   double simulationTime = 30; //seconds
-  double envStepTime = 0.001; //seconds, ns3gym env step time interval
+  // double envStepTime = 0.001; //seconds, ns3gym env step time interval
   uint32_t openGymPort = 5555;
   uint32_t testArg = 0;
   CommandLine cmd;
@@ -874,6 +909,14 @@ main (int argc, char *argv[])
 
   lteHelper->AttachToClosestEnb (ueDevs, enbDevs);
   // lteHelper->Attach(ueDevs,enbDevs.Get(0));
+
+  for (uint16_t i = 0; i < enbDevs.GetN(); i++)
+  {
+    Ptr<LteEnbRrc> enbRrc = GetEnb(i)->GetRrc ();
+    Ptr<AsyncFfMacScheduler> pff = GetSchedulerForEnb(i);
+    pff->SetSchedDlNewTxCB(MakeBoundCallback(OnSchedDlNewTx, i));
+  }
+
   //用trace获取物理层接收状态
   tracephyrx ();
 
@@ -1001,7 +1044,7 @@ main (int argc, char *argv[])
   lteHelper->EnableTraces ();
 
   // OpenGym Env
-  Ptr<OpenGymInterface> openGym = CreateObject<OpenGymInterface> (openGymPort);
+  openGym = CreateObject<OpenGymInterface> (openGymPort);
   openGym->SetGetActionSpaceCb (MakeCallback (&MyGetActionSpace));
   openGym->SetGetObservationSpaceCb (MakeCallback (&MyGetObservationSpace));
   openGym->SetGetGameOverCb (MakeCallback (&MyGetGameOver));
@@ -1009,7 +1052,7 @@ main (int argc, char *argv[])
   openGym->SetGetRewardCb (MakeCallback (&MyGetReward));
   openGym->SetGetExtraInfoCb (MakeCallback (&MyGetExtraInfo));
   openGym->SetExecuteActionsCb (MakeCallback (&MyExecuteActions));
-  Simulator::Schedule (Seconds (0.0), &ScheduleNextStateRead, envStepTime, openGym);
+  // Simulator::Schedule (Seconds (0.0), &ScheduleNextStateRead, envStepTime, openGym);
   NS_LOG_UNCOND ("Simulation start");
   Simulator::Stop (Seconds (simulationTime));
   AnimationInterface anim ("sim.xml");

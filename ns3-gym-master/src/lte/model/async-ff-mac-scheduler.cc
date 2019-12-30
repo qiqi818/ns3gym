@@ -496,6 +496,13 @@ AsyncFfMacScheduler::RefreshHarqProcesses ()
   }
 }
 
+void 
+AsyncFfMacScheduler::SetSchedDlNewTxCB(
+  Callback<void, const std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>& > cb)
+{
+  m_cb = cb;
+}
+
 void AsyncFfMacScheduler::DoSchedRar (std::vector<struct BuildRarListElement_s>& ret)
 {
   // RACH Allocation
@@ -666,7 +673,7 @@ AsyncFfMacScheduler::Alloc2Bitmap(const std::vector<uint16_t>& alloc)
 }
 
 void
-AsyncFfMacScheduler::DoSchedDlHarq (std::vector<bool> &rbgMap,
+AsyncFfMacScheduler::DoSchedDlRetx(std::vector<bool> &rbgMap,
                                     std::vector<struct BuildDataListElement_s>& ret)
 {
   std::set<uint16_t> rntiAllocated;
@@ -916,7 +923,6 @@ AsyncFfMacScheduler::BuildFromAllocation(uint16_t rnti, const std::vector<uint16
     newDci.m_rv.push_back (0);
   }
 
-  // qinhao: following code for what ?????
   uint16_t lcActives = LcActivePerFlow (rnti);
   NS_LOG_INFO (this << "Allocate user " << newEl.m_rnti << " rbg " << lcActives);
   if (lcActives == 0) {
@@ -947,7 +953,7 @@ AsyncFfMacScheduler::BuildFromAllocation(uint16_t rnti, const std::vector<uint16
       for (uint8_t j = 0; j < nLayer; j++) {
         RlcPduListElement_s newRlcEl;
         newRlcEl.m_logicalChannelIdentity = (*itBufReq).first.m_lcId;
-        newRlcEl.m_size = newDci.m_tbsSize.at (j) / lcActives;
+        newRlcEl.m_size = newDci.m_tbsSize[j] / lcActives;
         NS_LOG_INFO (this << " LCID " << (uint32_t) newRlcEl.m_logicalChannelIdentity << " size " << newRlcEl.m_size << " layer " << (uint16_t)j);
         newRlcPduLe.push_back (newRlcEl);
         UpdateDlRlcBufferInfo (newDci.m_rnti, newRlcEl.m_logicalChannelIdentity, newRlcEl.m_size);
@@ -1013,7 +1019,7 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     m_dlInfoListBuffered.clear ();
   }
 
-  DoSchedDlHarq (rbgMap, ret.m_buildDataList);
+  DoSchedDlRetx(rbgMap, ret.m_buildDataList);
 
   uint16_t rbgAllocatedNum = 0;
   for (size_t idx = 0; idx < rbgMap.size(); idx++) {
@@ -1032,10 +1038,18 @@ AsyncFfMacScheduler::DoSchedDlTriggerReq (const struct FfMacSchedSapProvider::Sc
     }
     return;
   }
-  m_ret = ret;
-  // 这里先返回，等获得RLC部分的调度结果后再统一执行
+
+  StartSchedDlNewTx(ret);
 
   Simulator::ScheduleNow(&AsyncFfMacScheduler::ExecuteDlSchedResult, this);
+}
+
+void
+AsyncFfMacScheduler::StartSchedDlNewTx(FfMacSchedSapUser::SchedDlConfigIndParameters ret)
+{
+  m_ret = ret;
+  m_cb(m_rlcBufferReq);
+  // 这里先返回，等获得RLC部分的调度结果后再统一执行
 }
 
 void  

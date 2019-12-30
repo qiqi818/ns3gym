@@ -131,6 +131,9 @@ public:
    * \param params FfMacCschedSapProvider::CschedLcConfigReqParameters
    */
   void DoCschedLcConfigReq (const struct FfMacCschedSapProvider::CschedLcConfigReqParameters& params);
+
+  void SetSchedDlNewTxCB(
+    Callback<void, const std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>& > cb);
    /**
    * Vectors of UE's LC info
   */
@@ -238,7 +241,9 @@ private:
   BuildFromAllocation(uint16_t rnti, const std::vector<uint16_t>& alloc);
 
   void ResetHarq (uint16_t rnti, uint8_t harqId);
-  void DoSchedDlHarq (std::vector<bool> &rbgMap, std::vector<struct BuildDataListElement_s> &ret);
+  void DoSchedDlRetx(std::vector<bool> &rbgMap, std::vector<struct BuildDataListElement_s> &ret);
+  void StartSchedDlNewTx(FfMacSchedSapUser::SchedDlConfigIndParameters ret);
+
 
   /**
    * \brief Sched DL trigger request
@@ -363,7 +368,7 @@ private:
   std::string m_cellid;
 
  
-
+  Callback<void, const std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>& >  m_cb;
  
 
 
