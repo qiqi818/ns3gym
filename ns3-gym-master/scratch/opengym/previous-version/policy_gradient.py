@@ -94,7 +94,6 @@ class PolicyGradient:
 
         # Run forward propagation to get softmax probabilities
         prob_weights = self.sess.run(self.outputs_softmax, feed_dict = {self.X: observation})
-        # print("-----------weights: ",prob_weights)
         # Select action using a biased sample
         # this will return the index of the action we've sampled
         action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
@@ -136,8 +135,8 @@ class PolicyGradient:
             action = random.randint(0, len(prob_weights.ravel())-1)
         else:
             try:
-                action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
-                # action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
+                # action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
+                action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
             except:
                 action = random.randint(0, len(prob_weights.ravel())-1)
         action = ii[0][action] - int(cellid*self.nOfChannel)
@@ -169,10 +168,8 @@ class PolicyGradient:
 
         # Run forward propagation to get softmax probabilities
         prob_weights = self.sess.run(self.outputs_softmax, feed_dict = {self.X: observation})
-        # print("---weights: \n",prob_weights)
-#        print(prob_weights[0])
-        # for n in range(len(ii[0])):
-        #     ii[0][n] = ii[0][n] + int(cellid*self.nOfChannel)
+
+
         if sum(prob_weights[0][ii]) > 0:
             prob_weights = prob_weights[0][ii]/sum(prob_weights[0][ii])
         else:
@@ -185,8 +182,8 @@ class PolicyGradient:
             # action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
             action = random.randint(0, len(prob_weights.ravel())-1)
         else:
-            action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
-            # action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
+            # action = np.random.choice(range(len(prob_weights.ravel())), p=prob_weights.ravel())
+            action = range(len(prob_weights.ravel()))[np.where(prob_weights == max(prob_weights))[0][0]]
         action = ii[0][action]
 
         matrixOfChanAlloc[int(cellid)][action] = 1
