@@ -1161,60 +1161,25 @@ AsyncFfMacScheduler::DoSchedDlCqiInfoReq (const struct FfMacSchedSapProvider::Sc
   m_ffrSapProvider->ReportDlCqiInfo (params);
 
   for (unsigned int i = 0; i < params.m_cqiList.size (); i++)
-    {
-      if ( params.m_cqiList.at (i).m_cqiType == CqiListElement_s::P10 )
-        {
-          NS_LOG_LOGIC ("wideband CQI " <<  (uint32_t) params.m_cqiList.at (i).m_wbCqi.at (0) << " reported");
-          std::map <uint16_t,uint8_t>::iterator it;
-          uint16_t rnti = params.m_cqiList.at (i).m_rnti;
-          it = m_p10CqiRxed.find (rnti);
-          if (it == m_p10CqiRxed.end ())
-            {
-              // create the new entry
-              m_p10CqiRxed.insert ( std::pair<uint16_t, uint8_t > (rnti, params.m_cqiList.at (i).m_wbCqi.at (0)) ); // only codeword 0 at this stage (SISO)
-              // generate correspondent timer
-              m_p10CqiTimers.insert ( std::pair<uint16_t, uint32_t > (rnti, m_cqiTimersThreshold));
-            }
-          else
-            {
-              // update the CQI value and refresh correspondent timer
-              (*it).second = params.m_cqiList.at (i).m_wbCqi.at (0);
-              // update correspondent timer
-              std::map <uint16_t,uint32_t>::iterator itTimers;
-              itTimers = m_p10CqiTimers.find (rnti);
-              (*itTimers).second = m_cqiTimersThreshold;
-            }
-        }
-      else if ( params.m_cqiList.at (i).m_cqiType == CqiListElement_s::A30 )
-        {
-          // subband CQI reporting high layer configured
-          std::map <uint16_t,SbMeasResult_s>::iterator it;
-          uint16_t rnti = params.m_cqiList.at (i).m_rnti;
-          it = m_a30CqiRxed.find (rnti);
-          if (it == m_a30CqiRxed.end ())
-            {
-              // create the new entry
-              m_a30CqiRxed.insert ( std::pair<uint16_t, SbMeasResult_s > (rnti, params.m_cqiList.at (i).m_sbMeasResult) );
-              m_a30CqiTimers.insert ( std::pair<uint16_t, uint32_t > (rnti, m_cqiTimersThreshold));
-            }
-          else
-            {
-              // update the CQI value and refresh correspondent timer
-              (*it).second = params.m_cqiList.at (i).m_sbMeasResult;
-              std::map <uint16_t,uint32_t>::iterator itTimers;
-              itTimers = m_a30CqiTimers.find (rnti);
-              (*itTimers).second = m_cqiTimersThreshold;
-            }
-        }
-      else
-        {
-          NS_LOG_ERROR (this << " CQI type unknown");
-        }
+  {
+    uint16_t rnti = params.m_cqiList[i].m_rnti;
+    if( params.m_cqiList[i].m_cqiType == CqiListElement_s::P10 ) { // 周期上报CQI，通过PUCCH
+      NS_LOG_LOGIC ("wideband CQI " <<  (uint32_t) params.m_cqiList[i].m_wbCqi[0] << " reported");
+      m_p10CqiRxed[rnti] = params.m_cqiList[i].m_wbCqi[0]; // only codeword 0 at this stage (SISO)
+      // generate correspondent timer
+      m_p10CqiTimers[rnti] = m_cqiTimersThreshold;
     }
-
+    else if( params.m_cqiList[i].m_cqiType == CqiListElement_s::A30 ) { // 非周期上报，通过PUSCH
+      // subband CQI reporting high layer configured
+      m_a30CqiRxed[rnti] = params.m_cqiList[i].m_sbMeasResult;
+      m_a30CqiTimers[rnti] = m_cqiTimersThreshold;
+    }
+    else {
+      NS_LOG_ERROR (this << " CQI type unknown");
+    }
+  }
   return;
 }
-
 
 double
 AsyncFfMacScheduler::EstimateUlSinr (uint16_t rnti, uint16_t rb)
@@ -1946,53 +1911,45 @@ AsyncFfMacScheduler::RefreshUlCqiMaps (void)
 void
 AsyncFfMacScheduler::UpdateDlRlcBufferInfo (uint16_t rnti, uint8_t lcid, uint16_t size)
 {
-  std::map<LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters>::iterator it;
   LteFlowId_t flow (rnti, lcid);
-  it = m_rlcBufferReq.find (flow);
-  if (it != m_rlcBufferReq.end ())
-    {
-      NS_LOG_INFO (this << " UE " << rnti << " LC " << (uint16_t)lcid << " txqueue " << (*it).second.m_rlcTransmissionQueueSize << " retxqueue " << (*it).second.m_rlcRetransmissionQueueSize << " status " << (*it).second.m_rlcStatusPduSize << " decrease " << size);
-      // Update queues: RLC tx order Status, ReTx, Tx
-      // Update status queue
-      if (((*it).second.m_rlcStatusPduSize > 0) && (size >= (*it).second.m_rlcStatusPduSize))
-        {
-          (*it).second.m_rlcStatusPduSize = 0;
-        }
-      else if (((*it).second.m_rlcRetransmissionQueueSize > 0) && (size >= (*it).second.m_rlcRetransmissionQueueSize))
-        {
-          (*it).second.m_rlcRetransmissionQueueSize = 0;
-        }
-      else if ((*it).second.m_rlcTransmissionQueueSize > 0)
-        {
-          uint32_t rlcOverhead;
-          if (lcid == 1)
-            {
-              // for SRB1 (using RLC AM) it's better to
-              // overestimate RLC overhead rather than
-              // underestimate it and risk unneeded
-              // segmentation which increases delay 
-              rlcOverhead = 4;
-            }
-          else
-            {
-              // minimum RLC overhead due to header
-              rlcOverhead = 2;
-            }
-          // update transmission queue
-          if ((*it).second.m_rlcTransmissionQueueSize <= size - rlcOverhead)
-            {
-              (*it).second.m_rlcTransmissionQueueSize = 0;
-            }
-          else
-            {
-              (*it).second.m_rlcTransmissionQueueSize -= size - rlcOverhead;
-            }
-        }
+
+  if(m_rlcBufferReq.count(flow) == 0) {
+    NS_LOG_ERROR (this << " Does not find DL RLC Buffer Report of UE " << rnti);
+    return;
+  }
+
+  FfMacSchedSapProvider::SchedDlRlcBufferReqParameters& rrp = m_rlcBufferReq[flow];
+  NS_LOG_INFO (this << " UE " << rnti << " LC " << (uint16_t)lcid << " txqueue " << rrp.m_rlcTransmissionQueueSize 
+                    << " retxqueue " << rrp.m_rlcRetransmissionQueueSize 
+                    << " status " << rrp.m_rlcStatusPduSize << " decrease " << size);
+  // Update queues: RLC tx order Status, ReTx, Tx
+  // Update status queue
+  if ((rrp.m_rlcStatusPduSize > 0) && (size >= rrp.m_rlcStatusPduSize)) {
+    rrp.m_rlcStatusPduSize = 0;
+  }
+  else if ((rrp.m_rlcRetransmissionQueueSize > 0) && (size >= rrp.m_rlcRetransmissionQueueSize)) {
+    rrp.m_rlcRetransmissionQueueSize = 0;
+  }
+  else if (rrp.m_rlcTransmissionQueueSize > 0) {
+    uint32_t rlcOverhead;
+    if (lcid == 1) {
+      // for SRB1 (using RLC AM) it's better to overestimate RLC overhead rather than
+      // underestimate it and risk unneeded segmentation which increases delay 
+      rlcOverhead = 4;
     }
-  else
-    {
-      NS_LOG_ERROR (this << " Does not find DL RLC Buffer Report of UE " << rnti);
+    else {
+      // minimum RLC overhead due to header
+      rlcOverhead = 2;
     }
+
+    // update transmission queue
+    if (rrp.m_rlcTransmissionQueueSize <= size - rlcOverhead) {
+      rrp.m_rlcTransmissionQueueSize = 0;
+    }
+    else {
+      rrp.m_rlcTransmissionQueueSize -= size - rlcOverhead;
+    }
+  }
 }
 
 void
