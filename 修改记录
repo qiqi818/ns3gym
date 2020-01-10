@@ -12,3 +12,7 @@
 
 2019.12.27
 重构了polic.py的代码
+
+2020.01.10
+1.在ns3-gym-master/scratch/目录下 创建lte-alloc-dac目录和lte-alloc-maxCI目录,分别实现动态频谱资源分配仿真和已有的maxCI算法仿真，运行结果输出到txt文件，详情请参见以上两个目录下的readme.txt
+2.基于策略梯度的卫星频谱资源动态分配算法.docx文档

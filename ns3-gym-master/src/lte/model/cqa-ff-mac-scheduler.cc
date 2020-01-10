@@ -180,7 +180,7 @@ CqaFfMacScheduler::GetTypeId (void)
                    MakeStringChecker ())
     .AddAttribute ("HarqEnabled",
                    "Activate/Deactivate the HARQ [by default is active].",
-                   BooleanValue (true),
+                   BooleanValue (false),
                    MakeBooleanAccessor (&CqaFfMacScheduler::m_harqOn),
                    MakeBooleanChecker ())
     .AddAttribute ("UlGrantMcs",

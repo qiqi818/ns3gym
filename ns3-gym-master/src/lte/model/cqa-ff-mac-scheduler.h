@@ -123,6 +123,31 @@ public:
    */
   void TransmissionModeConfigurationUpdate (uint16_t rnti, uint8_t txMode);
 
+    /**
+   * Vectors of UE's LC info
+  */
+  std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> m_rlcBufferReq;
+    /**
+  * Map of UE's DL CQI P01 received
+  */
+  std::map <uint16_t,uint8_t> m_p10CqiRxed;
+
+  /**
+  * Map of UE's timers on DL CQI P01 received
+  */
+  std::map <uint16_t,uint32_t> m_p10CqiTimers;
+
+  /**
+  * Map of UE's DL CQI A30 received
+  */
+  std::map <uint16_t,SbMeasResult_s> m_a30CqiRxed;
+
+  /**
+  * Map of UE's timers on DL CQI A30 received
+  */
+  std::map <uint16_t,uint32_t> m_a30CqiTimers;
+  Ptr<LteAmc> m_amc; ///< LTE AMC object
+  FfMacSchedSapUser::SchedDlConfigIndParameters m_ret;
 private:
   //
   // Implementation of the CSCHED API primitives
@@ -293,12 +318,9 @@ private:
   */
   void RefreshHarqProcesses ();
 
-  Ptr<LteAmc> m_amc; ///< LTE AMC object
 
-  /**
-   * Vectors of UE's LC info
-  */
-  std::map <LteFlowId_t, FfMacSchedSapProvider::SchedDlRlcBufferReqParameters> m_rlcBufferReq;
+
+
 
 
   /**
@@ -316,25 +338,7 @@ private:
   */
   std::map <LteFlowId_t,struct LogicalChannelConfigListElement_s> m_ueLogicalChannelsConfigList;
 
-  /**
-  * Map of UE's DL CQI P01 received
-  */
-  std::map <uint16_t,uint8_t> m_p10CqiRxed;
 
-  /**
-  * Map of UE's timers on DL CQI P01 received
-  */
-  std::map <uint16_t,uint32_t> m_p10CqiTimers;
-
-  /**
-  * Map of UE's DL CQI A30 received
-  */
-  std::map <uint16_t,SbMeasResult_s> m_a30CqiRxed;
-
-  /**
-  * Map of UE's timers on DL CQI A30 received
-  */
-  std::map <uint16_t,uint32_t> m_a30CqiTimers;
 
   /**
   * Map of previous allocated UE per RBG
