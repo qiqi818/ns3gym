@@ -778,7 +778,6 @@ LteUePhy::CreateDlCqiFeedbackMessage (const SpectrumValue& sinr)
       //NS_LOG_DEBUG (this << " Create A30 CQI feedback, RBG " << rbgSize << " cqiNum " << nbSubChannels << " band "  << (uint16_t)m_dlBandwidth);
       for (int i = 0; i < nbSubChannels; i++)
         {
-          // std::cout << ">???????????????" << std::endl;
           if (cqi.at (i) != -1)
             {
               cqiSum += cqi.at (i);
@@ -794,8 +793,6 @@ LteUePhy::CreateDlCqiFeedbackMessage (const SpectrumValue& sinr)
               for (int i = 0; i < nLayer; i++)
                 {
                   hlCqi.m_sbCqi.push_back ((uint16_t) cqiSum / rbgSize);
-                  // for(auto it = hlCqi.m_sbCqi.begin();it != hlCqi.m_sbCqi.end();it++)
-                  //   std::cout << (uint32_t)(*it) << std::endl;
                 }
               rbgMeas.m_higherLayerSelected.push_back (hlCqi);
               cqiSum = 0.0;

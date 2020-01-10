@@ -336,7 +336,7 @@ LteAmc::CreateCqiFeedbacks (const SpectrumValue& sinr, uint8_t rbgSize)
   
   if (m_amcModel == PiroEW2010)
     {
-      
+
       for (it = sinr.ConstValuesBegin (); it != sinr.ConstValuesEnd (); it++)
         {
           double sinr_ = (*it);
@@ -370,7 +370,6 @@ LteAmc::CreateCqiFeedbacks (const SpectrumValue& sinr, uint8_t rbgSize)
     }
   else if (m_amcModel == MiErrorModel)
     {
-      // std::cout <<"++++++++++++++++++++++++++: " <<  sinr << std::endl;
       NS_LOG_DEBUG (this << " AMC-VIENNA RBG size " << (uint16_t)rbgSize);
       NS_ASSERT_MSG (rbgSize > 0, " LteAmc-Vienna: RBG size must be greater than 0");
       std::vector <int> rbgMap;
@@ -428,8 +427,7 @@ LteAmc::CreateCqiFeedbacks (const SpectrumValue& sinr, uint8_t rbgSize)
       }
       
     }
-  // for(uint32_t i = 0; i < cqi.size(); i++)
-    // std::cout << cqi[i] << "--" << std::endl;
+
   return cqi;
 }
 
