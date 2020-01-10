@@ -2,3 +2,4 @@ ns3-gym-master/scratch/opengym/logs/*
 ns3-gym-master/.vscode/settings.json
 ns3-gym-master/.vscode/c_cpp_properties.json
 ns3-gym-master/sim.xml
+ns3-gym-master/scratch/lte-alloc/logs/*
